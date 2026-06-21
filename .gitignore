@@ -1,0 +1,6 @@
+*.mp4
+*.mov
+frames/
+*.jpg
+*.jpeg
+!sample_data/
