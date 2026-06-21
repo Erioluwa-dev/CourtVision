@@ -1,19 +1,20 @@
 import json
 import os
 import time
-from api import build_player_dict
-from exceptions import PlayerNotFoundError, InvalidStatError
 
-PLAYERS_FILE = '/content/drive/MyDrive/courtvision/players.json'
+from api import build_player_dict
+from exceptions import InvalidStatError, PlayerNotFoundError
+
+PLAYERS_FILE = "/content/drive/MyDrive/courtvision/players.json"
 
 players_to_fetch = [
     {"search": "Gilgeous", "full_name": "Shai Gilgeous-Alexander"},
-    {"search": "Curry",    "full_name": "Stephen Curry"},
-    {"search": "LeBron",   "full_name": "LeBron James"},
-    {"search": "Wembanyama","full_name": "Victor Wembanyama"},
-    {"search": "Tatum",    "full_name": "Jayson Tatum"},
-    {"search": "Durant",   "full_name": "Kevin Durant"},
-    {"search": "Kawhi",    "full_name": "Kawhi Leonard"},
+    {"search": "Curry", "full_name": "Stephen Curry"},
+    {"search": "LeBron", "full_name": "LeBron James"},
+    {"search": "Wembanyama", "full_name": "Victor Wembanyama"},
+    {"search": "Tatum", "full_name": "Jayson Tatum"},
+    {"search": "Durant", "full_name": "Kevin Durant"},
+    {"search": "Kawhi", "full_name": "Kawhi Leonard"},
 ]
 
 all_stars = {
@@ -26,10 +27,12 @@ all_stars = {
     "Jayson Tatum": True,
 }
 
+
 def save_players(players, filename=PLAYERS_FILE):
     with open(filename, "w") as f:
         json.dump(players, f, indent=2)
     print(f"Saved {len(players)} players to {filename}")
+
 
 def load_players(filename=PLAYERS_FILE):
     try:
@@ -43,6 +46,7 @@ def load_players(filename=PLAYERS_FILE):
     except json.JSONDecodeError:
         print("File corrupted")
         return None
+
 
 def fetch_or_load_players(filename=PLAYERS_FILE):
     if os.path.exists(filename):
