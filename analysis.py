@@ -133,3 +133,48 @@ def team_summary(player_summaries):
         "fastest_player": fastest_player(player_summaries),
         "rankings": rank_players(player_summaries),
     }
+def analyze_all_players(
+    trajectories,
+    game_duration,
+    zone_histories,
+):
+    """
+    Generate analytics summaries for every player.
+    """
+    summaries = []
+
+    for player_id, trajectory in trajectories.items():
+        summary = player_summary(
+            player_id,
+            trajectory,
+            game_duration,
+            zone_histories.get(player_id, []),
+        )
+
+        summaries.append(summary)
+
+    return summaries
+
+
+def analytics_report(
+    trajectories,
+    game_duration,
+    zone_histories,
+):
+    """
+    Generate the complete analytics report for a game.
+    """
+    player_reports = analyze_all_players(
+        trajectories,
+        game_duration,
+        zone_histories,
+    )
+
+    team_report = team_summary(
+        player_reports,
+    )
+
+    return {
+        "players": player_reports,
+        "team": team_report,
+    }
