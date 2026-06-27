@@ -1,10 +1,3 @@
-"""
-trajectory.py
-
-Stores player movement trajectories throughout a game.
-"""
-
-
 class TrajectoryTracker:
     """
     Stores every detected position for each player.
@@ -16,8 +9,7 @@ class TrajectoryTracker:
     def add_position(
         self,
         player_id,
-        x,
-        y,
+        position,
     ):
         """
         Add a new position for a player.
@@ -26,7 +18,7 @@ class TrajectoryTracker:
         if player_id not in self.trajectories:
             self.trajectories[player_id] = []
 
-        self.trajectories[player_id].append((x, y))
+        self.trajectories[player_id].append(position)
 
     def get_trajectory(self, player_id):
         """
