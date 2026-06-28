@@ -109,7 +109,7 @@ def process_video_with_tracking(model, video_path, output_dir, every_n=30):
             break
 
         if frame_index % every_n == 0:
-            boxes, result = track_players_in_frame(model, frame)
+            tracked_players = track_players_in_frame(model, frame)
             annotated    = annotate_tracked_frame(frame.copy(), result)
 
             out_path = os.path.join(output_dir, f"tracked_{frame_index}.jpg")
