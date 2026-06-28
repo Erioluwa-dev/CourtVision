@@ -62,7 +62,23 @@ def get_tracked_persons(result):
 def track_players_in_frame(model, frame):
     result = run_tracker(model, frame)
     return get_tracked_persons(result), result
+def build_tracked_players(boxes):
+    tracked_players = []
 
+    for box in boxes:
+        x, y, w, h, confidence = box_to_coords(box)
+
+        tracked_player = {
+            "id": int(box.id[0]),
+            "position": get_centroid(x, y, w, h),
+            "bounding_box": (x, y, w, h),
+            "confidence": confidence,
+        }
+
+        tracked_players.append(tracked_player)
+
+    return tracked_players
+  
 
 # ============================================================
 # Visualization
