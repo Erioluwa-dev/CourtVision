@@ -11,6 +11,7 @@ class TrajectoryTracker:
         player_id,
         position,
     ):
+    
         """
         Add a new position for a player.
         """
@@ -19,6 +20,18 @@ class TrajectoryTracker:
             self.trajectories[player_id] = []
 
         self.trajectories[player_id].append(position)
+    def update(self, tracked_players):
+    """
+    Update trajectories for every tracked player
+    in the current frame.
+    """
+
+    for player in tracked_players:
+
+        self.add_position(
+            player["id"],
+            player["position"],
+        )
 
     def get_trajectory(self, player_id):
         """
