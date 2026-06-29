@@ -60,8 +60,18 @@ def get_tracked_persons(result):
 
 
 def track_players_in_frame(model, frame):
+    """
+    Track players and convert them into
+    CourtVision player objects.
+    """
+
     result = run_tracker(model, frame)
-    return get_tracked_persons(result), result
+
+    boxes = get_tracked_persons(result)
+
+    tracked_players = build_tracked_players(boxes)
+
+    return tracked_players, result
 def build_tracked_players(boxes):
     tracked_players = []
 
@@ -109,13 +119,13 @@ def process_video_with_tracking(model, video_path, output_dir, every_n=30):
             break
 
         if frame_index % every_n == 0:
-            tracked_players = track_players_in_frame(model, frame)
+            tracked_players, result = track_players_in_frame(model, frame)
             annotated    = annotate_tracked_frame(frame.copy(), result)
 
             out_path = os.path.join(output_dir, f"tracked_{frame_index}.jpg")
             cv2.imwrite(out_path, annotated)
 
-            ids = [int(b.id[0]) for b in boxes]
+            ids = [player["id"] for player in tracked_players]
             print(f"Frame {frame_index}: {len(boxes)} players → IDs {ids}")
             saved_count += 1
 
