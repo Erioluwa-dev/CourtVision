@@ -1,3 +1,4 @@
+import cv2
 class TrajectoryTracker:
     """
     Stores every detected position for each player.
@@ -11,7 +12,6 @@ class TrajectoryTracker:
         player_id,
         position,
     ):
-    
         """
         Add a new position for a player.
         """
@@ -20,18 +20,22 @@ class TrajectoryTracker:
             self.trajectories[player_id] = []
 
         self.trajectories[player_id].append(position)
-    def update(self, tracked_players):
-    """
-    Update trajectories for every tracked player
-    in the current frame.
-    """
 
-    for player in tracked_players:
+    def update(
+        self,
+        tracked_players,
+    ):
+        """
+        Update trajectories for every tracked player
+        in the current frame.
+        """
 
-        self.add_position(
-            player["id"],
-            player["position"],
-        )
+        for player in tracked_players:
+
+            self.add_position(
+                player["id"],
+                player["position"],
+            )
 
     def get_trajectory(self, player_id):
         """
@@ -46,3 +50,29 @@ class TrajectoryTracker:
         """
 
         return self.trajectories
+
+
+    def draw_trajectories(
+        self,
+        frame,
+    ):
+        """
+        Draw every stored trajectory
+        onto the current frame.
+        """
+
+        for positions in self.trajectories.values():
+
+            for position in positions:
+
+                x, y = position
+
+                cv2.circle(
+                    frame,
+                    (x, y),
+                    3,
+                    (0, 255, 0),
+                    -1,
+                )
+
+        return frame
