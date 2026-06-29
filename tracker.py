@@ -61,15 +61,22 @@ def get_tracked_persons(result):
 
 def track_players_in_frame(model, frame):
     """
-    Track players and convert them into
-    CourtVision player objects.
+    Track players in a frame and convert
+    them into CourtVision player objects.
     """
 
-    result = run_tracker(model, frame)
+    result = run_tracker(
+        model,
+        frame,
+    )
 
-    boxes = get_tracked_persons(result)
+    boxes = get_tracked_persons(
+        result,
+    )
 
-    tracked_players = build_tracked_players(boxes)
+    tracked_players = build_tracked_players(
+        boxes,
+    )
 
     return tracked_players, result
 def build_tracked_players(boxes):
