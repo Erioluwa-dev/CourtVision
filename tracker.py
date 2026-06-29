@@ -77,6 +77,12 @@ def track_players_in_frame(model, frame):
     tracked_players = build_tracked_players(
         boxes,
     )
+    print("Type:", type(tracked_players))
+    print("Length:", len(tracked_players))
+
+    if len(tracked_players) > 0:
+        print("First item type:", type(tracked_players[0]))
+        print("First item:", tracked_players[0])
 
     return tracked_players, result
 def build_tracked_players(boxes):
@@ -95,7 +101,7 @@ def build_tracked_players(boxes):
         tracked_players.append(tracked_player)
 
     return tracked_players
-  
+
 
 # ============================================================
 # Visualization
@@ -133,7 +139,7 @@ def process_video_with_tracking(model, video_path, output_dir, every_n=30):
             cv2.imwrite(out_path, annotated)
 
             ids = [player["id"] for player in tracked_players]
-            print(f"Frame {frame_index}: {len(boxes)} players → IDs {ids}")
+            print(f"Frame {frame_index}: {len(tracked_players)} players → IDs {ids}")
             saved_count += 1
 
         frame_index += 1
@@ -168,9 +174,20 @@ if __name__ == "__main__":
     frame = extract_frame(VIDEO_PATH, 10)
     print("Frame loaded:", frame is not None)
 
-    boxes, result = track_players_in_frame(model, frame)
-    ids = [int(b.id[0]) for b in boxes]
-    print(f"Frame 10: {len(boxes)} players tracked → IDs {ids}")
+    tracked_players, result = track_players_in_frame(
+    model,
+    frame,
+)
+
+    ids = [
+    player["id"]
+    for player in tracked_players
+]
+
+    print(
+    f"Frame 10: "
+    f"{len(tracked_players)} players tracked → IDs {ids}"
+)
 
     annotated = annotate_tracked_frame(frame.copy(), result)
     cv2.imwrite("tracked_frame.jpg", annotated)
