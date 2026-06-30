@@ -1,4 +1,30 @@
 import sys
+import cv2
+
+from google.colab.patches import cv2_imshow
+
+from team import TeamClassifier
+from stats import PlayerStats
+from data import MatchData
+from trajectory import TrajectoryTracker
+from ball import BallTracker
+from possession import PossessionTracker
+
+from vision import (
+    load_video,
+    read_frame,
+    release_video,
+)
+
+from tracker import (
+    run_tracker,
+    track_players,
+    track_ball,
+    annotate_tracked_frame,
+)
+
+from detect import load_model
+
 
 """
 CourtVision
@@ -7,19 +33,8 @@ Main application entry point.
 """
 
 # Ensure the latest version of vision.py is loaded
-if 'vision' in sys.modules:
-    del sys.modules['vision']
-
-from trajectory import TrajectoryTracker
-from vision import (
-    load_video,
-    read_frame,
-    release_video,
-)
-from detect import (
-    load_model,
-    detect_players,
-)
+if "vision" in sys.modules:
+    del sys.modules["vision"]
 
 
 def run(video_path):
@@ -29,10 +44,22 @@ def run(video_path):
 
     print("🏀 Starting CourtVision...")
 
-    tracker = TrajectoryTracker()
     model = load_model()
 
-    print("✅ Tracker initialized.")
+    trajectory_tracker = TrajectoryTracker()
+    player_stats = PlayerStats()
+    match = MatchData()
+    team_classifier = TeamClassifier()
+    ball_tracker = BallTracker()
+    possession_tracker = PossessionTracker()
+
+    print("✅ AI model loaded.")
+    print("✅ Trajectory tracker initialized.")
+    print("✅ Player stats initialized.")
+    print("✅ Team classifier initialized.")
+    print("✅ Ball tracker initialized.")
+    print("✅ Possession tracker initialized.")
+    print("✅ Match data initialized.")
 
     print("📹 Loading video...")
 
@@ -41,7 +68,6 @@ def run(video_path):
     print("✅ Video loaded successfully.")
 
     frame_count = 0
-    boxes = [] # Initialize boxes to handle case where loop might not run
 
     while True:
 
@@ -50,28 +76,229 @@ def run(video_path):
         if not success:
             break
 
-        boxes = detect_players(
+        # ---------------------------------
+        # Run YOLO + ByteTrack
+        # ---------------------------------
+
+        result = run_tracker(
             model,
             frame,
         )
 
-        frame_count += 1
+        # ---------------------------------
+        # Extract tracked objects
+        # ---------------------------------
 
-        print(
-            f"Frame {frame_count}: "
-            f"{len(boxes)} players detected"
+        tracked_players = track_players(
+            result,
         )
 
-        if frame_count % 100 == 0:
-            print(
-                f"Processed {frame_count} frames..."
+        tracked_ball = track_ball(
+            result,
+        )
+
+        # ---------------------------------
+        # Update analytics
+        # ---------------------------------
+
+        trajectory_tracker.update(
+            tracked_players,
+        )
+
+        player_stats.update(
+            tracked_players,
+        )
+
+        ball_tracker.update(
+            tracked_ball,
+        )
+
+        possession_tracker.update(
+            tracked_players,
+            tracked_ball,
+        )
+
+        match.add_frame(
+            frame_count,
+            tracked_players,
+        )
+
+        # ---------------------------------
+        # Team classification
+        # ---------------------------------
+
+        for player in tracked_players:
+
+            jersey = team_classifier.extract_jersey(
+                frame,
+                player["bounding_box"],
             )
 
-    
+            color = team_classifier.average_jersey_color(
+                jersey,
+            )
+
+            team_classifier.store_color(
+                player["id"],
+                color,
+            )
+
+        if (
+            frame_count > 0
+            and frame_count % 30 == 0
+        ):
+            team_classifier.classify_teams()
+
+        # ---------------------------------
+        # Draw overlays
+        # ---------------------------------
+
+        frame = annotate_tracked_frame(
+            frame,
+            result,
+        )
+
+        frame = trajectory_tracker.draw_trajectories(
+            frame,
+        )
+
+        # ---------------------------------
+        # Logging every 100 frames
+        # ---------------------------------
+
+        if frame_count % 100 == 0:
+
+            ids = [
+                player["id"]
+                for player in tracked_players
+            ]
+
+            print()
+            print(f"Frame {frame_count}")
+            print(f"Players tracked: {len(tracked_players)}")
+            print(f"IDs: {ids}")
+
+            if tracked_ball is not None:
+
+                print(
+                    f"Ball Position: {tracked_ball['position']}"
+                )
+
+                print(
+                    f"Ball Speed: "
+                    f"{ball_tracker.current_speed:.2f}px/frame"
+                )
+
+            else:
+
+                print("Ball: Not detected")
+
+            print(
+                f"Current Possession: "
+                f"{possession_tracker.get_current_player()}"
+            )
+
+            print()
+
+            for player in tracked_players:
+
+                stats = player_stats.players[
+                    player["id"]
+                ]
+
+                team = team_classifier.get_team(
+                    player["id"]
+                )
+
+                color = (
+                    team_classifier
+                    .get_all_colors()
+                    .get(player["id"])
+                )
+
+                print(
+                    f"Player {player['id']} | "
+                    f"Team: {team}"
+                )
+
+                print(
+                    f"Frames: {stats['frames_seen']} | "
+                    f"Distance: {stats['distance_pixels']:.2f}px | "
+                    f"Speed: {stats['current_speed']:.2f}px/frame"
+                )
+
+                print(
+                    f"Jersey Color: {color}"
+                )
+
+                print()
+
+            cv2_imshow(frame)
+
+        frame_count += 1
+
+    # ---------------------------------
+    # Cleanup
+    # ---------------------------------
+
+    release_video(video)
+
+    cv2.destroyAllWindows()
+
+    print()
+
+    print(
+        f"Stored {len(match.get_all_frames())} frames."
+    )
+
+    print()
+
+    print("First stored frame:")
+
+    print(
+        match.get_frame(0)
+    )
+
+    print()
+
+    print("Ball Summary")
+
+    print(
+        f"Frames Seen: {ball_tracker.frames_seen}"
+    )
+
+    print(
+        f"Maximum Speed: "
+        f"{ball_tracker.max_speed:.2f}px/frame"
+    )
+
+    print(
+        f"Trajectory Points: "
+        f"{len(ball_tracker.positions)}"
+    )
+
+    print()
+
+    print("Possession Summary")
+
+    print(
+        f"Current Player: "
+        f"{possession_tracker.get_current_player()}"
+    )
+
+    print(
+        f"Possession Records: "
+        f"{len(possession_tracker.get_history())}"
+    )
+
+    print()
 
     print("✅ Video processing complete.")
-    print(f"Total frames processed: {frame_count}")
+
+    print(
+        f"Total frames processed: {frame_count}"
+    )
 
 
 if __name__ == "__main__":
-    run("footage.mp4")
+    run("/content/CourtVision/footage.mp4")
