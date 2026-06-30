@@ -56,3 +56,33 @@ class ShotDetector:
 
         # Reset for the next shot.
         self.current_attempt = None
+
+    def update_passes(
+        self,
+        pass_detector,
+    ):
+        """
+        Generate commentary
+        whenever a new pass occurs.
+        """
+
+        passes = pass_detector.get_all_passes()
+
+        # No passes detected.
+        if len(passes) == 0:
+            return
+
+        latest_pass = passes[-1]
+
+        commentary = (
+            f"Player {latest_pass['from']} "
+            f"passes to Player "
+            f"{latest_pass['to']}."
+        )
+
+        # Prevent duplicate commentary.
+        if self.latest_event() != commentary:
+
+            self.add_event(
+                commentary,
+            )
