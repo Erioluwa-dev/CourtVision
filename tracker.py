@@ -1,3 +1,4 @@
+
 import cv2
 import os
 import math
@@ -7,191 +8,333 @@ from detect import box_to_coords
 
 
 # ============================================================
-# IoU & Centroid Utilities
+# Geometry Utilities
 # ============================================================
 
 def iou(box_a, box_b):
-    x_left   = max(box_a[0], box_b[0])
-    y_top    = max(box_a[1], box_b[1])
-    x_right  = min(box_a[2], box_b[2])
+    """
+    Calculate Intersection over Union.
+    """
+
+    x_left = max(box_a[0], box_b[0])
+    y_top = max(box_a[1], box_b[1])
+    x_right = min(box_a[2], box_b[2])
     y_bottom = min(box_a[3], box_b[3])
 
     if x_right < x_left or y_bottom < y_top:
         return 0.0
 
-    intersection = (x_right - x_left) * (y_bottom - y_top)
-    area_a = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1])
-    area_b = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1])
-    union  = area_a + area_b - intersection
+    intersection = (
+        (x_right - x_left)
+        * (y_bottom - y_top)
+    )
+
+    area_a = (
+        (box_a[2] - box_a[0])
+        * (box_a[3] - box_a[1])
+    )
+
+    area_b = (
+        (box_b[2] - box_b[0])
+        * (box_b[3] - box_b[1])
+    )
+
+    union = area_a + area_b - intersection
 
     return intersection / union
 
 
-def get_centroid(x, y, w, h):
-    return (x + w // 2, y + h // 2)
+def get_centroid(
+    x,
+    y,
+    w,
+    h,
+):
+    """
+    Return center of a bounding box.
+    """
+
+    return (
+        x + w // 2,
+        y + h // 2,
+    )
 
 
-def centroid_distance(c1, c2):
-    return math.sqrt((c1[0] - c2[0])**2 + (c1[1] - c2[1])**2)
+def centroid_distance(
+    point_a,
+    point_b,
+):
+    """
+    Distance between two points.
+    """
+
+    return math.sqrt(
+        (point_a[0] - point_b[0]) ** 2 +
+        (point_a[1] - point_b[1]) ** 2
+    )
 
 
 # ============================================================
-# ByteTrack — Detection
+# YOLO + ByteTrack
 # ============================================================
 
-def run_tracker(model, frame):
-    results = model.track(frame, persist=True)
+def run_tracker(
+    model,
+    frame,
+):
+    """
+    Run YOLO tracking.
+    """
+
+    results = model.track(
+        frame,
+        persist=True,
+    )
+
     return results[0]
 
 
-def get_track_ids(result):
-    return [
-        int(box.id[0]) if box.id is not None else -1
-        for box in result.boxes
-    ]
+# ============================================================
+# Raw YOLO Objects
+# ============================================================
 
-
-def get_tracked_persons(result):
-    return [
-        box for box in result.boxes
-        if result.names[int(box.cls[0])] == "person"
-        and box.id is not None
-    ]
-
-
-def track_players_in_frame(model, frame):
+def get_tracked_persons(
+    result,
+):
     """
-    Track players in a frame and convert
-    them into CourtVision player objects.
+    Return tracked people.
     """
 
-    result = run_tracker(
-        model,
-        frame,
-    )
+    persons = []
 
-    boxes = get_tracked_persons(
-        result,
-    )
+    for box in result.boxes:
 
-    tracked_players = build_tracked_players(
-        boxes,
-    )
-    print("Type:", type(tracked_players))
-    print("Length:", len(tracked_players))
+        class_name = result.names[
+            int(box.cls[0])
+        ]
 
-    if len(tracked_players) > 0:
-        print("First item type:", type(tracked_players[0]))
-        print("First item:", tracked_players[0])
+        if (
+            class_name == "person"
+            and box.id is not None
+        ):
+            persons.append(box)
 
-    return tracked_players, result
-def build_tracked_players(boxes):
+    return persons
+
+
+def get_tracked_ball(
+    result,
+):
+    """
+    Return tracked basketball.
+    """
+
+    for box in result.boxes:
+
+        class_name = result.names[
+            int(box.cls[0])
+        ]
+
+        if class_name == "sports ball":
+
+            return box
+
+    return None
+
+
+# ============================================================
+# CourtVision Objects
+# ============================================================
+
+def build_tracked_players(
+    boxes,
+):
+    """
+    Convert YOLO people into CourtVision players.
+    """
+
     tracked_players = []
 
     for box in boxes:
-        x, y, w, h, confidence = box_to_coords(box)
 
-        tracked_player = {
-            "id": int(box.id[0]),
-            "position": get_centroid(x, y, w, h),
-            "bounding_box": (x, y, w, h),
-            "confidence": confidence,
-        }
+        x, y, w, h, confidence = box_to_coords(
+            box,
+        )
 
-        tracked_players.append(tracked_player)
+        tracked_players.append(
+
+            {
+                "id": int(box.id[0]),
+                "position": get_centroid(
+                    x,
+                    y,
+                    w,
+                    h,
+                ),
+                "bounding_box": (
+                    x,
+                    y,
+                    w,
+                    h,
+                ),
+                "confidence": confidence,
+            }
+
+        )
 
     return tracked_players
 
 
+def build_tracked_ball(
+    box,
+):
+    """
+    Convert YOLO basketball into CourtVision ball.
+    """
+
+    if box is None:
+        return None
+
+    x, y, w, h, confidence = box_to_coords(
+        box,
+    )
+
+    return {
+
+        "position": get_centroid(
+            x,
+            y,
+            w,
+            h,
+        ),
+
+        "bounding_box": (
+            x,
+            y,
+            w,
+            h,
+        ),
+
+        "confidence": confidence,
+
+    }
+
+
 # ============================================================
-# Visualization
+# Public API
 # ============================================================
 
-def annotate_tracked_frame(frame, result):
-    for box in get_tracked_persons(result):
-        x, y, w, h, conf = box_to_coords(box)
-        track_id = int(box.id[0])
-        frame = draw_box(frame, x, y, w, h, f"ID:{track_id}")
+def track_players(
+    result,
+):
+    """
+    Return CourtVision players.
+    """
+
+    return build_tracked_players(
+
+        get_tracked_persons(
+            result,
+        )
+
+    )
+
+
+def track_ball(
+    result,
+):
+    """
+    Return CourtVision basketball.
+    """
+
+    return build_tracked_ball(
+
+        get_tracked_ball(
+            result,
+        )
+
+    )
+
+
+# ============================================================
+# Drawing
+# ============================================================
+
+def annotate_tracked_frame(
+    frame,
+    result,
+):
+    """
+    Draw tracked player IDs.
+    """
+
+    for box in get_tracked_persons(
+        result,
+    ):
+
+        x, y, w, h, confidence = box_to_coords(
+            box,
+        )
+
+        frame = draw_box(
+
+            frame,
+            x,
+            y,
+            w,
+            h,
+            f"ID:{int(box.id[0])}",
+
+        )
+
     return frame
 
 
-# ============================================================
-# Video Pipeline
-# ============================================================
-
-def process_video_with_tracking(model, video_path, output_dir, every_n=30):
-    os.makedirs(output_dir, exist_ok=True)
-
-    cap = cv2.VideoCapture(video_path)
-    frame_index = 0
-    saved_count = 0
-
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
-
-        if frame_index % every_n == 0:
-            tracked_players, result = track_players_in_frame(model, frame)
-            annotated    = annotate_tracked_frame(frame.copy(), result)
-
-            out_path = os.path.join(output_dir, f"tracked_{frame_index}.jpg")
-            cv2.imwrite(out_path, annotated)
-
-            ids = [player["id"] for player in tracked_players]
-            print(f"Frame {frame_index}: {len(tracked_players)} players → IDs {ids}")
-            saved_count += 1
-
-        frame_index += 1
-
-    cap.release()
-    print(f"Processed {saved_count} frames → {output_dir}/")
-    return saved_count
-
-
-# ============================================================
-# Entry Point
-# ============================================================
-
-if __name__ == "__main__":
-    from detect import load_model
-    from vision import extract_frame
-
-    VIDEO_PATH = "/content/CourtVision/footage.mp4"
-
-    # --- math tests (no model needed) ---
-    box_a = (0, 0, 100, 100)
-    box_b = (50, 50, 150, 150)
-    print(f"IoU: {iou(box_a, box_b):.2f}")
-
-    c1 = get_centroid(0, 0, 100, 100)
-    c2 = get_centroid(50, 50, 100, 100)
-    print(f"Centroid 1: {c1}, Centroid 2: {c2}")
-    print(f"Distance: {centroid_distance(c1, c2):.2f}")
-
-    # --- tracking tests ---
-    model = load_model()
-    frame = extract_frame(VIDEO_PATH, 10)
-    print("Frame loaded:", frame is not None)
-
-    tracked_players, result = track_players_in_frame(
-    model,
+def draw_ball(
     frame,
-)
+    tracked_ball,
+):
+    """
+    Draw basketball.
+    """
 
-    ids = [
-    player["id"]
-    for player in tracked_players
-]
+    if tracked_ball is None:
+        return frame
 
-    print(
-    f"Frame 10: "
-    f"{len(tracked_players)} players tracked → IDs {ids}"
-)
+    x, y, w, h = tracked_ball[
+        "bounding_box"
+    ]
 
-    annotated = annotate_tracked_frame(frame.copy(), result)
-    cv2.imwrite("tracked_frame.jpg", annotated)
-    print("Saved tracked_frame.jpg")
+    cv2.rectangle(
 
-    # --- bonus pipeline ---
-    process_video_with_tracking(model, VIDEO_PATH, "tracked", every_n=30)
+        frame,
+
+        (x, y),
+
+        (x + w, y + h),
+
+        (0, 165, 255),
+
+        2,
+
+    )
+
+    cv2.putText(
+
+        frame,
+
+        "BALL",
+
+        (x, y - 10),
+
+        cv2.FONT_HERSHEY_SIMPLEX,
+
+        0.6,
+
+        (0, 165, 255),
+
+        2,
+
+    )
+
+    return frame
