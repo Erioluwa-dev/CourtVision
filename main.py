@@ -13,6 +13,7 @@ from possession import PossessionTracker
 from pass_detector import PassDetector
 from commentary import CommentaryEngine
 from shot_detector import ShotDetector
+from court import CourtMapper
 
 from vision import (
     load_video,
@@ -61,6 +62,35 @@ def run(video_path):
     pass_detector = PassDetector()
     commentary = CommentaryEngine()
     shot_detector = ShotDetector()
+    court_mapper = CourtMapper()
+
+
+    image_points = [
+
+        (100, 100),
+        (500, 100),
+        (500, 400),
+        (100, 400),
+
+    ]
+
+    court_points = [
+
+        (0, 0),
+        (28, 0),
+        (28, 15),
+        (0, 15),
+
+    ]
+
+    court_mapper.set_reference_points(
+
+        image_points,
+        court_points,
+
+    )
+
+    court_mapper.compute_homography()
 
     print("✅ AI model loaded.")
     print("✅ Trajectory tracker initialized.")
@@ -107,6 +137,14 @@ def run(video_path):
 
         tracked_ball = track_ball(
             result,
+        )
+
+        mapped_players = court_mapper.map_players(
+            tracked_players,
+        )
+
+        mapped_ball = court_mapper.map_ball(
+            tracked_ball,
         )
 
         # ---------------------------------
@@ -162,7 +200,7 @@ def run(video_path):
         # Team classification
         # ---------------------------------
 
-        for player in tracked_players:
+        for player in mapped_players:
 
             jersey = team_classifier.extract_jersey(
                 frame,
@@ -230,6 +268,12 @@ def run(video_path):
                 print(
                     f"Ball Position: {tracked_ball['position']}"
                 )
+                if mapped_ball is not None:
+
+                    print(
+                        f"Ball Court Position: "
+                        f"{mapped_ball['court_position']}"
+                    )
 
                 print(
                     f"Ball Speed: "
@@ -252,7 +296,7 @@ def run(video_path):
 
             print()
 
-            for player in tracked_players:
+            for player in mapped_players:
 
                 stats = player_stats.players[
                     player["id"]
@@ -281,6 +325,10 @@ def run(video_path):
 
                 print(
                     f"Jersey Color: {color}"
+                )
+                print(
+                    f"Court Position: "
+                    f"{player['court_position']}"
                 )
 
                 print()
