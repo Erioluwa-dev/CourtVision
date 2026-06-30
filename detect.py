@@ -12,8 +12,12 @@ MODEL_PATH = "yolov8n.pt"
 # Model
 # ---------------------------
 
-def load_model(model_path=MODEL_PATH):
-    return YOLO(model_path)
+MODEL_PATH = "/content/CourtVision/models/yolov8n.pt"
+
+def load_model():
+    model = YOLO(MODEL_PATH)
+    print("✅ AI model loaded.")
+    return model
 
 
 # ---------------------------
