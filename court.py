@@ -1,3 +1,4 @@
+
 import cv2
 import numpy as np
 
@@ -48,8 +49,7 @@ class CourtMapper:
 
         if (
             self.image_points is None
-            or
-            self.court_points is None
+            or self.court_points is None
         ):
             raise ValueError(
                 "Reference points have not been set."
@@ -68,3 +68,74 @@ class CourtMapper:
         Convert an image point
         into court coordinates.
         """
+
+        if self.homography is None:
+
+            raise ValueError(
+                "Homography has not been computed."
+            )
+
+        point = np.array(
+            [[pixel]],
+            dtype=np.float32,
+        )
+
+        court_point = cv2.perspectiveTransform(
+            point,
+            self.homography,
+        )
+
+        return tuple(
+            court_point[0][0]
+        )
+
+    def map_players(
+        self,
+        tracked_players,
+    ):
+        """
+        Convert every tracked player
+        into court coordinates.
+        """
+
+        mapped_players = []
+
+        for player in tracked_players:
+
+            mapped_position = self.pixel_to_court(
+                player["position"],
+            )
+
+            mapped_player = player.copy()
+
+            mapped_player[
+                "court_position"
+            ] = mapped_position
+
+            mapped_players.append(
+                mapped_player,
+            )
+
+        return mapped_players
+
+    def map_ball(
+        self,
+        tracked_ball,
+    ):
+        """
+        Convert the basketball
+        into court coordinates.
+        """
+
+        if tracked_ball is None:
+            return None
+
+        mapped_ball = tracked_ball.copy()
+
+        mapped_ball[
+            "court_position"
+        ] = self.pixel_to_court(
+            tracked_ball["position"],
+        )
+
+        return mapped_ball
