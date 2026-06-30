@@ -92,11 +92,48 @@ class CommentaryEngine:
 
         latest_pass = passes[-1]
 
+        # The commentary should refer to the latest pass, not current/last player possession
         commentary = (
             f"Player {latest_pass['from']} "
             f"passes to Player "
             f"{latest_pass['to']}."
         )
+
+        if self.latest_event() != commentary:
+
+            self.add_event(
+                commentary,
+            )
+
+    def update_shots(
+        self,
+        shot_detector,
+    ):
+        """
+        Generate commentary whenever
+        a shot attempt is completed.
+        """
+
+        latest_shot = (
+            shot_detector.latest_shot()
+        )
+
+        if latest_shot is None:
+            return
+
+        player = latest_shot["player"]
+
+        if latest_shot["made"]:
+
+            commentary = (
+                f"Player {player} scores!"
+            )
+
+        else:
+
+            commentary = (
+                f"Player {player} attempts a shot."
+            )
 
         if self.latest_event() != commentary:
 
