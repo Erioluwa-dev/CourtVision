@@ -8,12 +8,18 @@ class ShotDetector:
     """
 
     def __init__(self):
+        """
+        Initialize the shot detector.
+        """
 
         self.shots = []
 
         self.current_attempt = None
 
-        self.last_possessor = None
+        # Distance (in pixels) the ball must
+        # travel away from the shooter before
+        # we consider it a shot attempt.
+        self.shot_start_distance = 120
 
     def start_attempt(
         self,
@@ -80,7 +86,7 @@ class ShotDetector:
         self,
     ):
         """
-        Return the newest shot.
+        Return the newest shot attempt.
         """
 
         if len(self.shots) == 0:
@@ -103,9 +109,11 @@ class ShotDetector:
             possession_tracker.get_current_player()
         )
 
+        # Nobody has possession.
         if shooter is None:
             return
 
+        # Ball is not visible.
         if tracked_ball is None:
             return
 
@@ -127,7 +135,7 @@ class ShotDetector:
             return
 
         # ----------------------------
-        # Measure distance
+        # Measure ball distance
         # ----------------------------
 
         distance = centroid_distance(
@@ -135,14 +143,12 @@ class ShotDetector:
             tracked_ball["position"],
         )
 
-        SHOT_DISTANCE = 120
-
         # ----------------------------
-        # Shot begins
+        # Start shot attempt
         # ----------------------------
 
         if (
-            distance > SHOT_DISTANCE
+            distance > self.shot_start_distance
             and self.current_attempt is None
         ):
 
@@ -152,7 +158,12 @@ class ShotDetector:
             )
 
         # ----------------------------
-        # Shot ends
+        # Finish shot attempt
+        # ----------------------------
+        # MVP assumption:
+        # Once another player gains
+        # possession, the shot attempt
+        # has ended.
         # ----------------------------
 
         current_possessor = (
