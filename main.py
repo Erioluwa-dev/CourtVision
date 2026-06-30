@@ -4,13 +4,15 @@ import cv2
 
 from google.colab.patches import cv2_imshow
 
-from pass_detector import PassDetector
 from team import TeamClassifier
 from stats import PlayerStats
 from data import MatchData
 from trajectory import TrajectoryTracker
 from ball import BallTracker
 from possession import PossessionTracker
+from pass_detector import PassDetector
+from commentary import CommentaryEngine
+from shot_detector import ShotDetector
 
 from vision import (
     load_video,
@@ -57,6 +59,8 @@ def run(video_path):
     ball_tracker = BallTracker()
     possession_tracker = PossessionTracker()
     pass_detector = PassDetector()
+    commentary = CommentaryEngine()
+    shot_detector = ShotDetector()
 
     print("✅ AI model loaded.")
     print("✅ Trajectory tracker initialized.")
@@ -65,6 +69,8 @@ def run(video_path):
     print("✅ Ball tracker initialized.")
     print("✅ Possession tracker initialized.")
     print("✅ Pass detector initialized.")
+    print("✅ Commentary engine initialized.")
+    print("✅ Shot detector initialized.")
     print("✅ Match data initialized.")
 
     print("📹 Loading video...")
@@ -128,6 +134,25 @@ def run(video_path):
             possession_tracker.get_current_player(),
         )
 
+        shot_detector.update(
+            possession_tracker,
+            tracked_players,
+            tracked_ball,
+            frame_count,
+        )
+
+        commentary.update_possession(
+            possession_tracker,
+        )
+
+        commentary.update_passes(
+            pass_detector,
+        )
+
+        commentary.update_shots(
+            shot_detector,
+        )
+
         match.add_frame(
             frame_count,
             tracked_players,
@@ -187,6 +212,18 @@ def run(video_path):
             print(f"Frame {frame_count}")
             print(f"Players tracked: {len(tracked_players)}")
             print(f"IDs: {ids}")
+
+            latest = commentary.latest_event()
+
+            print()
+            print("Latest Commentary:")
+
+            if latest is not None:
+                print(latest)
+            else:
+                print("No commentary yet.")
+
+            print()
 
             if tracked_ball is not None:
 
