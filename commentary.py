@@ -6,6 +6,10 @@ class CommentaryEngine:
     """
 
     def __init__(self):
+        """
+        Initialize the commentary engine.
+        """
+
         self.events = []
 
     def add_event(
@@ -13,10 +17,12 @@ class CommentaryEngine:
         text,
     ):
         """
-        Store a commentary event.
+        Store a new commentary event.
         """
 
-        self.events.append(text)
+        self.events.append(
+            text,
+        )
 
     def get_events(
         self,
@@ -31,7 +37,7 @@ class CommentaryEngine:
         self,
     ):
         """
-        Return the newest event.
+        Return the newest commentary event.
         """
 
         if len(self.events) == 0:
@@ -56,24 +62,32 @@ class CommentaryEngine:
             possession_tracker.get_last_player()
         )
 
-        # Nobody has possession.
+        # Nobody currently has possession.
         if current_player is None:
             return
 
-        # First possession.
+        # First possession of the game.
         if last_player is None:
 
-            self.add_event(
+            commentary = (
                 f"Player {current_player} gains possession."
             )
 
+        # Possession changed.
+        elif current_player != last_player:
+
+            commentary = (
+                f"Player {current_player} receives the ball from "
+                f"Player {last_player}."
+            )
+
+        else:
             return
 
-        # Possession changed.
-        if current_player != last_player:
+        if self.latest_event() != commentary:
 
             self.add_event(
-                f"Player {current_player} receives the ball from Player {last_player}."
+                commentary,
             )
 
     def update_passes(
@@ -82,17 +96,18 @@ class CommentaryEngine:
     ):
         """
         Generate commentary whenever
-        a new pass occurs.
+        a new pass is detected.
         """
 
-        passes = pass_detector.get_all_passes()
+        passes = (
+            pass_detector.get_all_passes()
+        )
 
         if len(passes) == 0:
             return
 
         latest_pass = passes[-1]
 
-        # The commentary should refer to the latest pass, not current/last player possession
         commentary = (
             f"Player {latest_pass['from']} "
             f"passes to Player "
@@ -111,7 +126,7 @@ class CommentaryEngine:
     ):
         """
         Generate commentary whenever
-        a shot attempt is completed.
+        a shot attempt finishes.
         """
 
         latest_shot = (
@@ -140,3 +155,13 @@ class CommentaryEngine:
             self.add_event(
                 commentary,
             )
+
+    def clear_events(
+        self,
+    ):
+        """
+        Remove every stored
+        commentary event.
+        """
+
+        self.events.clear()
