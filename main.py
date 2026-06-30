@@ -1,8 +1,10 @@
+
 import sys
 import cv2
 
 from google.colab.patches import cv2_imshow
 
+from pass_detector import PassDetector
 from team import TeamClassifier
 from stats import PlayerStats
 from data import MatchData
@@ -49,9 +51,12 @@ def run(video_path):
     trajectory_tracker = TrajectoryTracker()
     player_stats = PlayerStats()
     match = MatchData()
+
     team_classifier = TeamClassifier()
+
     ball_tracker = BallTracker()
     possession_tracker = PossessionTracker()
+    pass_detector = PassDetector()
 
     print("✅ AI model loaded.")
     print("✅ Trajectory tracker initialized.")
@@ -59,6 +64,7 @@ def run(video_path):
     print("✅ Team classifier initialized.")
     print("✅ Ball tracker initialized.")
     print("✅ Possession tracker initialized.")
+    print("✅ Pass detector initialized.")
     print("✅ Match data initialized.")
 
     print("📹 Loading video...")
@@ -116,6 +122,10 @@ def run(video_path):
         possession_tracker.update(
             tracked_players,
             tracked_ball,
+        )
+
+        pass_detector.update(
+            possession_tracker.get_current_player(),
         )
 
         match.add_frame(
@@ -198,6 +208,11 @@ def run(video_path):
                 f"{possession_tracker.get_current_player()}"
             )
 
+            print(
+                f"Total Passes: "
+                f"{pass_detector.total_passes()}"
+            )
+
             print()
 
             for player in tracked_players:
@@ -230,6 +245,24 @@ def run(video_path):
                 print(
                     f"Jersey Color: {color}"
                 )
+
+                print()
+
+            if pass_detector.total_passes() > 0:
+
+                print("Detected Passes:")
+
+                for index, pass_event in enumerate(
+                    pass_detector.get_all_passes(),
+                    start=1,
+                ):
+
+                    print(
+                        f"{index}. "
+                        f"{pass_event['from']} "
+                        f"→ "
+                        f"{pass_event['to']}"
+                    )
 
                 print()
 
@@ -290,6 +323,27 @@ def run(video_path):
         f"Possession Records: "
         f"{len(possession_tracker.get_history())}"
     )
+
+    print()
+
+    print("Pass Summary")
+
+    print(
+        f"Total Passes: "
+        f"{pass_detector.total_passes()}"
+    )
+
+    for index, pass_event in enumerate(
+        pass_detector.get_all_passes(),
+        start=1,
+    ):
+
+        print(
+            f"Pass {index}: "
+            f"{pass_event['from']} "
+            f"→ "
+            f"{pass_event['to']}"
+        )
 
     print()
 
