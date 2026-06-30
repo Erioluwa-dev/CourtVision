@@ -1,34 +1,41 @@
-from exceptions import InvalidStatError
 
+class CommentaryEngine:
+    """
+    Generates basketball commentary
+    from CourtVision analytics.
+    """
 
-def get_tier(ppg):
-    if ppg < 0:
-        raise InvalidStatError(f"PPG cannot be negative: {ppg}")
-    if ppg >= 30:
-        return "MVP Candidate"
-    elif ppg >= 25:
-        return "Elite Scorer"
-    elif ppg >= 20:
-        return "Starter"
-    elif ppg >= 15:
-        return "Rotational piece"
-    else:
-        return "Role player"
+    def __init__(self):
 
+        self.events = []
 
-def get_star_label(is_all_star):
-    return "[ALL-STAR]" if is_all_star else ""
+    def add_event(
+        self,
+        text,
+    ):
+        """
+        Store a commentary event.
+        """
 
+        self.events.append(text)
 
-def get_commentary(player):
-    tier = get_tier(player["ppg"])
-    star = get_star_label(player["is_all_star"])
-    return f"{player['name']} | {tier} | {player['ppg']} PPG | {star}"
+    def get_events(
+        self,
+    ):
+        """
+        Return every commentary event.
+        """
 
+        return self.events
 
-def count_allstars(players):
-    count = 0
-    for player in players:
-        if player["is_all_star"]:
-            count += 1
-    return count
+    def latest_event(
+        self,
+    ):
+        """
+        Return the newest event.
+        """
+
+        if len(self.events) == 0:
+            return None
+
+        return self.events[-1]
