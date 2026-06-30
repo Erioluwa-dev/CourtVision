@@ -6,7 +6,6 @@ class CommentaryEngine:
     """
 
     def __init__(self):
-
         self.events = []
 
     def add_event(
@@ -39,3 +38,68 @@ class CommentaryEngine:
             return None
 
         return self.events[-1]
+
+    def update_possession(
+        self,
+        possession_tracker,
+    ):
+        """
+        Generate commentary whenever
+        possession changes.
+        """
+
+        current_player = (
+            possession_tracker.get_current_player()
+        )
+
+        last_player = (
+            possession_tracker.get_last_player()
+        )
+
+        # Nobody has possession.
+        if current_player is None:
+            return
+
+        # First possession.
+        if last_player is None:
+
+            self.add_event(
+                f"Player {current_player} gains possession."
+            )
+
+            return
+
+        # Possession changed.
+        if current_player != last_player:
+
+            self.add_event(
+                f"Player {current_player} receives the ball from Player {last_player}."
+            )
+
+    def update_passes(
+        self,
+        pass_detector,
+    ):
+        """
+        Generate commentary whenever
+        a new pass occurs.
+        """
+
+        passes = pass_detector.get_all_passes()
+
+        if len(passes) == 0:
+            return
+
+        latest_pass = passes[-1]
+
+        commentary = (
+            f"Player {latest_pass['from']} "
+            f"passes to Player "
+            f"{latest_pass['to']}."
+        )
+
+        if self.latest_event() != commentary:
+
+            self.add_event(
+                commentary,
+            )
