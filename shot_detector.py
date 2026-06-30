@@ -70,3 +70,25 @@ class ShotDetector:
         return len(
             self.shots,
         )
+
+    def update(
+        self,
+        possession_tracker,
+        tracked_ball,
+        frame_number,
+    ):
+        """
+        Detect shot attempts.
+        """
+
+        shooter = (
+            possession_tracker.get_current_player()
+        )
+
+        if shooter is None:
+            return
+
+        if tracked_ball is None:
+            return
+
+        # More shot logic comes here...
