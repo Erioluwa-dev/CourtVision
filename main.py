@@ -1,4 +1,3 @@
-
 import sys
 import cv2
 
@@ -26,6 +25,7 @@ from tracker import (
     track_players,
     track_ball,
     annotate_tracked_frame,
+    debug_detections,
 )
 
 from detect import load_model
@@ -125,6 +125,11 @@ def run(video_path):
         result = run_tracker(
             model,
             frame,
+        )
+        if frame_count % 100 == 0:
+
+            debug_detections(
+            result,
         )
 
         # ---------------------------------
