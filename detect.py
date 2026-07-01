@@ -5,14 +5,14 @@ from ultralytics import YOLO
 from vision import draw_box, extract_frame
 
 
-MODEL_PATH = "yolov8n.pt"
+MODEL_PATH = "yolov8x.pt"
 
 
 # ---------------------------
 # Model
 # ---------------------------
 
-MODEL_PATH = "/content/CourtVision/models/yolov8n.pt"
+MODEL_PATH = "models/yolov8x.pt"
 
 def load_model():
     model = YOLO(MODEL_PATH)
@@ -25,7 +25,20 @@ def load_model():
 # ---------------------------
 
 def run_detection(model, frame):
-    return model(frame)[0]
+    result = model(frame, verbose=False)[0]
+
+    print("\nYOLO Detections")
+
+    for box in result.boxes:
+        cls = int(box.cls[0])
+        conf = float(box.conf[0])
+
+        print(
+            f"{result.names[cls]:15} "
+            f"conf={conf:.2f}"
+        )
+
+    return result
 
 
 def get_person_boxes(result):
