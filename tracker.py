@@ -1,6 +1,5 @@
 
 import cv2
-import os
 import math
 
 from vision import draw_box
@@ -95,6 +94,33 @@ def run_tracker(
 
 
 # ============================================================
+# Debugging
+# ============================================================
+
+def debug_detections(
+    result,
+):
+    """
+    Print every detection made by YOLO.
+    """
+
+    print("\nYOLO Detections")
+
+    for box in result.boxes:
+
+        class_id = int(box.cls[0])
+
+        class_name = result.names[class_id]
+
+        confidence = float(box.conf[0])
+
+        print(
+            f"{class_name:<15}"
+            f"conf={confidence:.2f}"
+        )
+
+
+# ============================================================
 # Raw YOLO Objects
 # ============================================================
 
@@ -117,6 +143,7 @@ def get_tracked_persons(
             class_name == "person"
             and box.id is not None
         ):
+
             persons.append(box)
 
     return persons
@@ -265,25 +292,36 @@ def annotate_tracked_frame(
     result,
 ):
     """
-    Draw tracked player IDs.
+    Draw every YOLO detection.
+    Useful for debugging ball detection.
     """
 
-    for box in get_tracked_persons(
-        result,
-    ):
+    for box in result.boxes:
 
         x, y, w, h, confidence = box_to_coords(
             box,
         )
 
+        class_name = result.names[
+            int(box.cls[0])
+        ]
+
+        label = class_name
+
+        if box.id is not None:
+
+            label += f" {int(box.id[0])}"
+
         frame = draw_box(
 
             frame,
+
             x,
             y,
             w,
             h,
-            f"ID:{int(box.id[0])}",
+
+            label,
 
         )
 
