@@ -23,12 +23,11 @@ from vision import (
 from tracker import (
     run_tracker,
     track_players,
-    track_ball,
     annotate_tracked_frame,
     debug_detections,
 )
 
-from detect import load_model
+from detect import load_models, detect_ball, box_to_coords
 
 
 """
@@ -42,6 +41,26 @@ if "vision" in sys.modules:
     del sys.modules["vision"]
 
 
+def build_tracked_ball(ball_box):
+    """
+    Convert a raw YOLO ball detection box into the same
+    dict shape the rest of the pipeline (BallTracker,
+    CourtMapper, possession/pass/shot detectors) expects.
+    """
+    if ball_box is None:
+        return None
+
+    x, y, w, h, conf = box_to_coords(ball_box)
+    center_x = x + w / 2
+    center_y = y + h / 2
+
+    return {
+        "position": (center_x, center_y),
+        "bounding_box": (x, y, w, h),
+        "confidence": conf,
+    }
+
+
 def run(video_path):
     """
     Run the complete CourtVision pipeline.
@@ -49,7 +68,7 @@ def run(video_path):
 
     print("🏀 Starting CourtVision...")
 
-    model = load_model()
+    player_model, ball_model, rim_model = load_models()
 
     trajectory_tracker = TrajectoryTracker()
     player_stats = PlayerStats()
@@ -64,35 +83,29 @@ def run(video_path):
     shot_detector = ShotDetector()
     court_mapper = CourtMapper()
 
-
     image_points = [
-
         (100, 100),
         (500, 100),
         (500, 400),
         (100, 400),
-
     ]
 
     court_points = [
-
         (0, 0),
         (28, 0),
         (28, 15),
         (0, 15),
-
     ]
 
     court_mapper.set_reference_points(
-
         image_points,
         court_points,
-
     )
 
     court_mapper.compute_homography()
 
-    print("✅ AI model loaded.")
+    print("✅ Player model loaded.")
+    print("✅ Custom ball model loaded.")
     print("✅ Trajectory tracker initialized.")
     print("✅ Player stats initialized.")
     print("✅ Team classifier initialized.")
@@ -119,28 +132,35 @@ def run(video_path):
             break
 
         # ---------------------------------
-        # Run YOLO + ByteTrack
+        # Run YOLO + ByteTrack for players
         # ---------------------------------
 
         result = run_tracker(
-            model,
+            player_model,
             frame,
         )
-        if frame_count % 100 == 0:
 
+        if frame_count % 100 == 0:
             debug_detections(
-            result,
+                result,
+            )
+
+        # ---------------------------------
+        # Run custom model for ball
+        # ---------------------------------
+
+        ball_box = detect_ball(
+            ball_model,
+            frame,
         )
+
+        tracked_ball = build_tracked_ball(ball_box)
 
         # ---------------------------------
         # Extract tracked objects
         # ---------------------------------
 
         tracked_players = track_players(
-            result,
-        )
-
-        tracked_ball = track_ball(
             result,
         )
 
@@ -239,6 +259,25 @@ def run(video_path):
         frame = trajectory_tracker.draw_trajectories(
             frame,
         )
+
+        if ball_box is not None:
+            x, y, w, h, conf = box_to_coords(ball_box)
+            cv2.rectangle(
+                frame,
+                (x, y),
+                (x + w, y + h),
+                (0, 165, 255),
+                2,
+            )
+            cv2.putText(
+                frame,
+                f"ball {conf:.2f}",
+                (x, max(y - 8, 0)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 165, 255),
+                2,
+            )
 
         # ---------------------------------
         # Logging every 100 frames
