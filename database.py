@@ -64,4 +64,4 @@ def fetch_or_load_players(filename=PLAYERS_FILE):
             print(f"Skipping {entry['full_name']}: {e}")
         time.sleep(3)
     save_players(players, filename)
-    return playerss
+    return players
