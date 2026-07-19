@@ -4,3 +4,5 @@ frames/
 *.jpg
 *.jpeg
 !sample_data/
+__pycache__/
+.mimocode/
