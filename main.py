@@ -1,7 +1,16 @@
 import sys
+import os
 import cv2
 
-from google.colab.patches import cv2_imshow
+# Fallback for cv2_imshow when not running in Google Colab
+try:
+    from google.colab.patches import cv2_imshow
+except ImportError:
+    import numpy as np
+
+    def cv2_imshow(frame):
+        cv2.imshow("CourtVision", frame)
+        cv2.waitKey(1)
 
 from team import TeamClassifier
 from stats import PlayerStats
@@ -65,6 +74,11 @@ def run(video_path):
     """
     Run the complete CourtVision pipeline.
     """
+
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(
+            f"Video not found: {video_path}"
+        )
 
     print("🏀 Starting CourtVision...")
 
