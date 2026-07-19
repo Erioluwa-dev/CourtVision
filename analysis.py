@@ -85,6 +85,8 @@ def player_summary(
         "average_speed": round(speed, 2),
         "most_visited_zone": most_visited_zone,
     }
+
+
 def position_frequency(trajectory):
     counts = {}
 
@@ -92,12 +94,16 @@ def position_frequency(trajectory):
         counts[position] = counts.get(position, 0) + 1
 
     return counts
+
+
 def rank_players(player_summaries):
     return sorted(
         player_summaries,
         key=lambda player: player["distance"],
         reverse=True
     )
+
+
 def team_total_distance(player_summaries):
     distances = [
         player["distance"]
@@ -105,6 +111,8 @@ def team_total_distance(player_summaries):
     ]
 
     return sum(distances)
+
+
 def team_average_speed(player_summaries):
     if not player_summaries:
         return 0
@@ -118,6 +126,8 @@ def team_average_speed(player_summaries):
         sum(speeds) / len(speeds),
         2
     )
+
+
 def fastest_player(player_summaries):
     if not player_summaries:
         return None
@@ -126,6 +136,8 @@ def fastest_player(player_summaries):
         player_summaries,
         key=lambda player: player["average_speed"]
     )
+
+
 def team_summary(player_summaries):
     return {
         "total_distance": team_total_distance(player_summaries),
@@ -133,6 +145,8 @@ def team_summary(player_summaries):
         "fastest_player": fastest_player(player_summaries),
         "rankings": rank_players(player_summaries),
     }
+
+
 def analyze_all_players(
     trajectories,
     game_duration,

@@ -33,14 +33,15 @@ def load_models():
 # DETECTION
 # ============================================================
 
-def run_detection(model, frame, conf=0.25):
+def run_detection(model, frame, conf=0.25, verbose=False):
     result = model(frame, verbose=False, conf=conf)[0]
 
-    print("\nYOLO Detections")
-    for box in result.boxes:
-        cls = int(box.cls[0])
-        conf_val = float(box.conf[0])
-        print(f"{result.names[cls]:15} conf={conf_val:.2f}")
+    if verbose:
+        print("\nYOLO Detections")
+        for box in result.boxes:
+            cls = int(box.cls[0])
+            conf_val = float(box.conf[0])
+            print(f"{result.names[cls]:15} conf={conf_val:.2f}")
 
     return result
 
@@ -133,6 +134,11 @@ def process_video(
     ball_confidence=0.25,
     rim_confidence=0.4,
 ):
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(
+            f"Video not found: {video_path}"
+        )
+
     os.makedirs(output_dir, exist_ok=True)
 
     cap = cv2.VideoCapture(video_path)

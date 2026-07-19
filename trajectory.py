@@ -55,15 +55,15 @@ class TrajectoryTracker:
     def draw_trajectories(
         self,
         frame,
+        max_points=50,
     ):
-        """
-        Draw every stored trajectory
-        onto the current frame.
-        """
+        # Draw last N trajectory points per player to avoid O(n²) rendering
 
         for positions in self.trajectories.values():
 
-            for position in positions:
+            tail = positions[-max_points:] if len(positions) > max_points else positions
+
+            for position in tail:
 
                 x, y = position
 

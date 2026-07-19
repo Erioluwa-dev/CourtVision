@@ -8,6 +8,8 @@ class PossessionTracker:
     currently possesses the basketball.
     """
 
+    POSSESSION_DISTANCE = 60
+
     def __init__(self):
 
         self.current_player = None
@@ -65,11 +67,9 @@ class PossessionTracker:
         # Decide possession
         # ----------------------------
 
-        POSSESSION_DISTANCE = 60
-
         self.last_player = self.current_player
 
-        if closest_distance <= POSSESSION_DISTANCE:
+        if closest_distance <= self.POSSESSION_DISTANCE:
 
             self.current_player = closest_player
 
