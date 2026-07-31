@@ -108,11 +108,21 @@ class CommentaryEngine:
 
         latest_pass = passes[-1]
 
-        commentary = (
-            f"Player {latest_pass['from']} "
-            f"passes to Player "
-            f"{latest_pass['to']}."
-        )
+        if latest_pass["success"]:
+
+            commentary = (
+                f"Player {latest_pass['from']} "
+                f"passes to Player "
+                f"{latest_pass['to']}."
+            )
+
+        else:
+
+            commentary = (
+                f"Player {latest_pass['from']}'s pass is "
+                f"intercepted by Player "
+                f"{latest_pass['to']}."
+            )
 
         if self.latest_event() != commentary:
 
@@ -140,15 +150,30 @@ class CommentaryEngine:
 
         if latest_shot["made"]:
 
+            shot_type = latest_shot.get("shot_type", "2PT")
+
+            points = latest_shot.get("points", 2)
+
             commentary = (
-                f"Player {player} scores!"
+                f"Player {player} scores "
+                f"{points} points "
+                f"({shot_type})!"
             )
 
         else:
 
-            commentary = (
-                f"Player {player} attempts a shot."
-            )
+            if latest_shot.get("rim_reached"):
+
+                commentary = (
+                    f"Player {player} misses "
+                    f"at the rim."
+                )
+
+            else:
+
+                commentary = (
+                    f"Player {player} attempts a shot."
+                )
 
         if self.latest_event() != commentary:
 
