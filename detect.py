@@ -4,14 +4,17 @@ from ultralytics import YOLO
 
 from vision import draw_box, extract_frame
 
+import config
+from rim import detect_rim_box
+
 
 # ============================================================
 # MODELS
 # ============================================================
 
-PLAYER_MODEL_PATH = "models/yolov8n.pt"              # existing COCO-based player model
-BALL_MODEL_PATH = "models/basketball_ball_best.pt"   # your new custom ball-only model
-RIM_MODEL_PATH = None  # set this once you train rim/backboard model — leave None for now
+PLAYER_MODEL_PATH = config.PLAYER_MODEL_PATH
+BALL_MODEL_PATH = config.BALL_MODEL_PATH
+RIM_MODEL_PATH = config.RIM_MODEL_PATH
 
 
 def load_models():
@@ -24,7 +27,7 @@ def load_models():
     if rim_model:
         print("✅ Rim model loaded.")
     else:
-        print("⚠️ No rim model set yet — rim detection disabled.")
+        print("ℹ️ No rim model set — using classical-CV rim detection.")
 
     return player_model, ball_model, rim_model
 
@@ -84,13 +87,21 @@ def detect_ball(ball_model, frame, confidence=0.25):
 
 
 def detect_rim(rim_model, frame, confidence=0.4):
-    if rim_model is None:
-        return None  # not trained yet
+    """
+    Detect the rim.
 
-    result = run_detection(rim_model, frame, conf=confidence)
-    boxes = _get_boxes(result, ["rim", "hoop"])
-    rims = filter_boxes(boxes, confidence)
-    return rims[0] if rims else None
+    Uses the trained rim model when available; otherwise falls
+    back to the classical-CV detector (rim.py).
+    """
+
+    if rim_model is not None:
+
+        result = run_detection(rim_model, frame, conf=confidence)
+        boxes = _get_boxes(result, ["rim", "hoop"])
+        rims = filter_boxes(boxes, confidence)
+        return rims[0] if rims else None
+
+    return detect_rim_box(frame)
 
 
 # ============================================================
