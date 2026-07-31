@@ -1,5 +1,25 @@
+"""
+ShotDetector (Phase 6 - Shooting Engine).
 
-from tracker import centroid_distance
+Detects shot attempts and extends the original detector with:
+
+  * Rim interaction - the ball must come close to the rim for an
+    attempt to be made; passing below the rim plane marks a make.
+  * Shot type - 3PT vs 2PT from the release distance in court
+    space. (FT% needs foul detection - future work.)
+  * Field goal / three point percentages.
+  * Shot chart - release locations with outcomes.
+  * Expected Shot Value (ESV) - a distance-based make-probability
+    model (see config.ESV_MAKE_*).
+
+Original attributes and methods (start_attempt, finish_attempt,
+get_all_shots, total_shots, latest_shot) are preserved.
+"""
+
+import math
+
+import config
+from zones import classify_position
 
 
 class ShotDetector:
@@ -19,12 +39,74 @@ class ShotDetector:
         # Distance (in pixels) the ball must
         # travel away from the shooter before
         # we consider it a shot attempt.
-        self.shot_start_distance = 120
+        self.shot_start_distance = config.SHOT_START_DISTANCE_PX
+
+        # --------------------------------------------------
+        # Phase 6 additions
+        # --------------------------------------------------
+
+        # Rim centre (x, y) in image space, fed by the rim
+        # detector each frame.
+        self.rim_position = None
+
+        # Maximum frames an attempt may stay open before it is
+        # force-finished (ball out of bounds, never regained).
+        self.max_attempt_frames = 150
+
+        # Shooting tallies.
+        self.fg_attempts = 0
+        self.fg_made = 0
+        self.threepoint_attempts = 0
+        self.threepoint_made = 0
+        # FT tallies exist but stay 0 until foul detection
+        # (referee/whistle events) is implemented.
+        self.ft_attempts = 0
+        self.ft_made = 0
+
+    # --------------------------------------------------------
+    # Helpers
+    # --------------------------------------------------------
+
+    def set_rim_position(self, rim_position):
+        """
+        Feed the current rim centre (x, y) from the rim detector.
+        """
+
+        self.rim_position = rim_position
+
+    @staticmethod
+    def _expected_shot_value(distance_m, points):
+        """
+        Expected Shot Value = P(make | distance) * points.
+        """
+
+        make_probability = (
+            config.ESV_MAKE_BASE
+            * math.exp(-config.ESV_MAKE_DECAY * distance_m)
+        )
+
+        return round(make_probability * points, 3)
+
+    @staticmethod
+    def _shot_type(distance_m):
+        """
+        Classify a shot as 3PT or 2PT by release distance.
+        """
+
+        if distance_m >= config.THREE_POINT_DISTANCE_M:
+            return "3PT"
+
+        return "2PT"
+
+    # --------------------------------------------------------
+    # Attempt lifecycle
+    # --------------------------------------------------------
 
     def start_attempt(
         self,
         player_id,
         frame_number,
+        court_position=None,
     ):
         """
         Begin tracking a shot attempt.
@@ -38,28 +120,138 @@ class ShotDetector:
             "start_frame": frame_number,
             "end_frame": None,
             "made": None,
+            "rim_reached": False,
+            "possession_lost": False,
+            "ball_positions": [],
+            "court_position": court_position,
+            "distance_m": None,
+            "shot_type": None,
+            "points": None,
+            "esv": None,
+            "zone": None,
         }
 
     def finish_attempt(
         self,
         frame_number,
-        made,
+        made=None,
     ):
         """
-        Finish the current shot attempt.
+        Finish the current shot attempt, resolving the outcome.
         """
 
         if self.current_attempt is None:
             return
 
-        self.current_attempt["end_frame"] = frame_number
-        self.current_attempt["made"] = made
+        attempt = self.current_attempt
 
-        self.shots.append(
-            self.current_attempt,
-        )
+        attempt["end_frame"] = frame_number
+
+        # --------------------------------------------------
+        # Resolve made / missed using the rim position.
+        # --------------------------------------------------
+
+        if made is None:
+
+            if self.rim_position is None:
+
+                # No rim information: treat as a miss (original
+                # behaviour) and mark the outcome as unknown.
+                attempt["made"] = False
+                attempt["outcome_known"] = False
+
+            else:
+
+                rim_x, rim_y = self.rim_position
+
+                ball_points = attempt["ball_positions"]
+
+                reached = False
+                went_through = False
+
+                for bx, by in ball_points:
+
+                    distance_to_rim = math.hypot(
+                        bx - rim_x,
+                        by - rim_y,
+                    )
+
+                    if distance_to_rim <= config.SHOT_RIM_PROXIMITY_PX:
+                        reached = True
+
+                    # Ball crosses below the rim plane within the
+                    # rim's horizontal window -> likely a make.
+                    if (
+                        abs(bx - rim_x) <= config.SHOT_RIM_PROXIMITY_PX
+                        and by > rim_y + config.SHOT_RIM_CLEARANCE_PX
+                    ):
+                        went_through = True
+
+                attempt["rim_reached"] = reached
+
+                attempt["made"] = reached and went_through
+                attempt["outcome_known"] = True
+
+        else:
+
+            attempt["made"] = made
+            attempt["outcome_known"] = True
+
+        # --------------------------------------------------
+        # Shot type, points, expected value.
+        # --------------------------------------------------
+
+        court_position = attempt.get("court_position")
+
+        if court_position is not None:
+
+            attack_hoop = (
+                (0.0, config.COURT_WIDTH_M / 2.0)
+                if config.HALF_COURT
+                else (config.COURT_LENGTH_M, config.COURT_WIDTH_M / 2.0)
+            )
+
+            distance_m = math.hypot(
+                court_position[0] - attack_hoop[0],
+                court_position[1] - attack_hoop[1],
+            )
+
+            shot_type = self._shot_type(distance_m)
+
+            points = 3 if shot_type == "3PT" else 2
+
+            attempt["distance_m"] = round(distance_m, 2)
+            attempt["shot_type"] = shot_type
+            attempt["points"] = points
+            attempt["esv"] = self._expected_shot_value(distance_m, points)
+            attempt["zone"] = classify_position(
+                court_position[0],
+                court_position[1],
+            )
+
+        # --------------------------------------------------
+        # Tallies.
+        # --------------------------------------------------
+
+        self.fg_attempts += 1
+
+        if attempt["made"]:
+            self.fg_made += 1
+
+        if attempt["shot_type"] == "3PT":
+
+            self.threepoint_attempts += 1
+
+            if attempt["made"]:
+                self.threepoint_made += 1
+
+        self.shots.append(attempt)
 
         self.current_attempt = None
+
+    # --------------------------------------------------------
+    # Getters
+    # --------------------------------------------------------
 
     def get_all_shots(
         self,
@@ -78,9 +270,7 @@ class ShotDetector:
         of shot attempts.
         """
 
-        return len(
-            self.shots,
-        )
+        return len(self.shots)
 
     def latest_shot(
         self,
@@ -94,20 +284,109 @@ class ShotDetector:
 
         return self.shots[-1]
 
+    def field_goal_percentage(
+        self,
+    ):
+        """
+        Return overall FG% (0-100), or None with no attempts.
+        """
+
+        if self.fg_attempts == 0:
+            return None
+
+        return round(
+            self.fg_made / self.fg_attempts * 100.0,
+            1,
+        )
+
+    def three_point_percentage(
+        self,
+    ):
+        """
+        Return 3PT% (0-100), or None with no attempts.
+        """
+
+        if self.threepoint_attempts == 0:
+            return None
+
+        return round(
+            self.threepoint_made / self.threepoint_attempts * 100.0,
+            1,
+        )
+
+    def free_throw_percentage(
+        self,
+    ):
+        """
+        Return FT% (0-100), or None with no attempts.
+
+        Note: free throws are not detected yet (requires foul
+        detection); this stays None until then.
+        """
+
+        if self.ft_attempts == 0:
+            return None
+
+        return round(
+            self.ft_made / self.ft_attempts * 100.0,
+            1,
+        )
+
+    def get_shot_chart(
+        self,
+    ):
+        """
+        Return shot chart data: every attempt with release
+        location, outcome, type, points and ESV.
+        """
+
+        return [
+            {
+                "player": s["player"],
+                "frame": s["start_frame"],
+                "court_position": s.get("court_position"),
+                "made": s.get("made"),
+                "shot_type": s.get("shot_type"),
+                "points": s.get("points"),
+                "esv": s.get("esv"),
+                "zone": s.get("zone"),
+            }
+            for s in self.shots
+        ]
+
+    # --------------------------------------------------------
+    # Per-frame update
+    # --------------------------------------------------------
+
     def update(
         self,
         possession_tracker,
         tracked_players,
         tracked_ball,
         frame_number,
+        mapped_ball=None,
     ):
         """
         Detect shot attempts.
+
+        Args:
+            possession_tracker: current PossessionTracker.
+            tracked_players: CourtVision player dicts.
+            tracked_ball: CourtVision ball dict or None.
+            frame_number: pipeline frame counter.
+            mapped_ball: ball dict with court_position (release
+                location), when available.
         """
 
         shooter = (
             possession_tracker.get_current_player()
         )
+
+        # The ball is in flight right after the release, so
+        # possession is momentarily None. Fall back to the last
+        # possessor - the player who shot.
+        if shooter is None:
+            shooter = possession_tracker.get_last_player()
 
         # Nobody has possession.
         if shooter is None:
@@ -138,9 +417,9 @@ class ShotDetector:
         # Measure ball distance
         # ----------------------------
 
-        distance = centroid_distance(
-            shooter_data["position"],
-            tracked_ball["position"],
+        distance = math.hypot(
+            shooter_data["position"][0] - tracked_ball["position"][0],
+            shooter_data["position"][1] - tracked_ball["position"][1],
         )
 
         # ----------------------------
@@ -152,31 +431,70 @@ class ShotDetector:
             and self.current_attempt is None
         ):
 
+            court_position = None
+
+            if mapped_ball is not None:
+                court_position = mapped_ball.get("court_position")
+
             self.start_attempt(
                 shooter,
                 frame_number,
+                court_position=court_position,
+            )
+
+        # ----------------------------
+        # Track the ball during the attempt
+        # ----------------------------
+
+        if self.current_attempt is not None:
+
+            self.current_attempt["ball_positions"].append(
+                tracked_ball["position"]
             )
 
         # ----------------------------
         # Finish shot attempt
         # ----------------------------
-        # MVP assumption:
-        # Once another player gains
-        # possession, the shot attempt
-        # has ended.
+        # The attempt ends when another player gains possession
+        # (catch or rebound), when the shooter regains it after
+        # the ball was in flight (offensive rebound), or when the
+        # attempt has run too long (ball out of bounds).
         # ----------------------------
 
         current_possessor = (
             possession_tracker.get_current_player()
         )
 
-        if (
-            self.current_attempt is not None
-            and current_possessor is not None
-            and current_possessor != shooter
-        ):
+        attempt = self.current_attempt
 
-            self.finish_attempt(
-                frame_number,
-                made=False,
-            )
+        if attempt is not None:
+
+            attempt_player = attempt["player"]
+
+            # The ball left the shooter's hands whenever possession
+            # is lost while an attempt is active.
+            if current_possessor is None:
+                attempt["possession_lost"] = True
+
+            elapsed = frame_number - attempt["start_frame"]
+
+            if (
+                current_possessor is not None
+                and current_possessor != attempt_player
+            ):
+
+                # Another player gained possession (catch or rebound).
+                self.finish_attempt(frame_number)
+
+            elif (
+                current_possessor == attempt_player
+                and attempt["possession_lost"]
+            ):
+
+                # The shooter regained the ball: offensive rebound.
+                self.finish_attempt(frame_number, made=False)
+
+            elif elapsed > self.max_attempt_frames:
+
+                # Ball never regained: out of bounds.
+                self.finish_attempt(frame_number, made=False)
