@@ -12,6 +12,8 @@ except ImportError:
         cv2.imshow("CourtVision", frame)
         cv2.waitKey(1)
 
+import config
+
 from team import TeamClassifier
 from stats import PlayerStats
 from data import MatchData
@@ -22,6 +24,15 @@ from pass_detector import PassDetector
 from commentary import CommentaryEngine
 from shot_detector import ShotDetector
 from court import CourtMapper
+from hoop import HoopTracker
+from zones import classify_position
+from heatmap import HeatmapGenerator
+from court_detection import (
+    detect_court_lines,
+    setup_court_mapper,
+    draw_court_lines,
+)
+from rim import rim_center
 
 from vision import (
     load_video,
@@ -36,13 +47,21 @@ from tracker import (
     debug_detections,
 )
 
-from detect import load_models, detect_ball, box_to_coords
+from detect import (
+    load_models,
+    detect_ball,
+    detect_rim,
+    box_to_coords,
+)
 
 
 """
 CourtVision
 
-Main application entry point.
+Main application entry point - Phase 1-6 pipeline:
+detection (players / ball / rim / court) -> tracking -> homography
+-> zones -> heatmaps -> team classification -> stats -> possession
+-> passes -> shots -> commentary.
 """
 
 # Ensure the latest version of vision.py is loaded
@@ -68,6 +87,21 @@ def build_tracked_ball(ball_box):
         "bounding_box": (x, y, w, h),
         "confidence": conf,
     }
+
+
+def rim_box_center(rim_box):
+    """
+    Return the centre (x, y) of a rim box whether it comes from
+    the YOLO model or the classical-CV detector.
+    """
+    if rim_box is None:
+        return None
+
+    if hasattr(rim_box, "xyxy"):
+        x, y, w, h, _ = box_to_coords(rim_box)
+        return (x + w // 2, y + h // 2)
+
+    return rim_center(rim_box)
 
 
 def run(video_path):
@@ -96,27 +130,8 @@ def run(video_path):
     commentary = CommentaryEngine()
     shot_detector = ShotDetector()
     court_mapper = CourtMapper()
-
-    image_points = [
-        (100, 100),
-        (500, 100),
-        (500, 400),
-        (100, 400),
-    ]
-
-    court_points = [
-        (0, 0),
-        (28, 0),
-        (28, 15),
-        (0, 15),
-    ]
-
-    court_mapper.set_reference_points(
-        image_points,
-        court_points,
-    )
-
-    court_mapper.compute_homography()
+    hoop_tracker = HoopTracker()
+    heatmaps = HeatmapGenerator()
 
     print("✅ Player model loaded.")
     print("✅ Custom ball model loaded.")
@@ -128,6 +143,8 @@ def run(video_path):
     print("✅ Pass detector initialized.")
     print("✅ Commentary engine initialized.")
     print("✅ Shot detector initialized.")
+    print("✅ Hoop tracker initialized.")
+    print("✅ Heatmap generator initialized.")
     print("✅ Match data initialized.")
 
     print("📹 Loading video...")
@@ -136,7 +153,48 @@ def run(video_path):
 
     print("✅ Video loaded successfully.")
 
-    frame_count = 0
+    # ---------------------------------------------------------
+    # Court mapping: automatic line detection with manual fallback
+    # ---------------------------------------------------------
+
+    success, first_frame = read_frame(video)
+
+    if not success:
+        release_video(video)
+        raise RuntimeError("Could not read the first frame.")
+
+    manual_fallback = [
+        (100, 100),
+        (500, 100),
+        (500, 400),
+        (100, 400),
+    ]
+
+    court_info = setup_court_mapper(
+        first_frame,
+        court_mapper,
+        manual_image_points=manual_fallback,
+    )
+
+    if court_info["auto"]:
+        print(
+            f"✅ Court detected automatically "
+            f"(fit score {court_info['fit_score']:.2f})."
+        )
+    else:
+        print(
+            "⚠️ Automatic court detection failed — "
+            "using manual reference points. "
+            "Tune config.COURT_* or provide real points."
+        )
+
+    court_segments = (
+        detect_court_lines(first_frame)
+        if court_info["auto"]
+        else []
+    )
+
+    frame_count = 1
 
     while True:
 
@@ -171,6 +229,23 @@ def run(video_path):
         tracked_ball = build_tracked_ball(ball_box)
 
         # ---------------------------------
+        # Rim detection (model or classical CV)
+        # ---------------------------------
+
+        rim_box = detect_rim(
+            rim_model,
+            frame,
+        )
+
+        hoop_tracker.update(
+            rim_box_center(rim_box),
+        )
+
+        rim_position = hoop_tracker.get_smoothed_position()
+
+        shot_detector.set_rim_position(rim_position)
+
+        # ---------------------------------
         # Extract tracked objects
         # ---------------------------------
 
@@ -202,13 +277,20 @@ def run(video_path):
             tracked_ball,
         )
 
+        team_lookup = team_classifier.get_all_teams()
+
         possession_tracker.update(
             tracked_players,
             tracked_ball,
+            ball_speed=ball_tracker.current_speed,
+            frame_number=frame_count,
+            team_lookup=team_lookup,
         )
 
         pass_detector.update(
             possession_tracker.get_current_player(),
+            frame_number=frame_count,
+            team_lookup=team_lookup,
         )
 
         shot_detector.update(
@@ -216,6 +298,7 @@ def run(video_path):
             tracked_players,
             tracked_ball,
             frame_count,
+            mapped_ball=mapped_ball,
         )
 
         commentary.update_possession(
@@ -230,9 +313,25 @@ def run(video_path):
             shot_detector,
         )
 
+        heatmaps.update(
+            mapped_players,
+            mapped_ball,
+            possession_player=(
+                possession_tracker.get_current_player()
+            ),
+        )
+
         match.add_frame(
             frame_count,
             tracked_players,
+            tracked_ball=tracked_ball,
+            rim_position=rim_position,
+            court_lines=(
+                court_segments if court_info["auto"] else None
+            ),
+            possession_player=(
+                possession_tracker.get_current_player()
+            ),
         )
 
         # ---------------------------------
@@ -293,6 +392,37 @@ def run(video_path):
                 2,
             )
 
+        if rim_box is not None:
+
+            if hasattr(rim_box, "xyxy"):
+                x, y, w, h, _ = box_to_coords(rim_box)
+            else:
+                x1, y1, x2, y2, _ = rim_box
+                x, y, w, h = x1, y1, x2 - x1, y2 - y1
+
+            cv2.rectangle(
+                frame,
+                (x, y),
+                (x + w, y + h),
+                (0, 0, 255),
+                2,
+            )
+            cv2.putText(
+                frame,
+                "RIM",
+                (x, max(y - 8, 0)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 0, 255),
+                2,
+            )
+
+        if court_info["auto"]:
+            frame = draw_court_lines(
+                frame,
+                court_segments,
+            )
+
         # ---------------------------------
         # Logging every 100 frames
         # ---------------------------------
@@ -326,16 +456,18 @@ def run(video_path):
                 print(
                     f"Ball Position: {tracked_ball['position']}"
                 )
-                if mapped_ball is not None:
 
-                    print(
-                        f"Ball Court Position: "
-                        f"{mapped_ball['court_position']}"
-                    )
+                if ball_tracker.interpolated:
+                    print("Ball: INTERPOLATED (temporarily lost)")
 
                 print(
                     f"Ball Speed: "
                     f"{ball_tracker.current_speed:.2f}px/frame"
+                )
+
+                print(
+                    f"Ball Predicted (5 frames): "
+                    f"{ball_tracker.predict_position(5)}"
                 )
 
             else:
@@ -343,13 +475,25 @@ def run(video_path):
                 print("Ball: Not detected")
 
             print(
+                f"Rim: "
+                f"{rim_position if rim_position is not None else 'not detected'}"
+            )
+
+            print(
                 f"Current Possession: "
                 f"{possession_tracker.get_current_player()}"
             )
 
             print(
+                f"Possession %: "
+                f"{possession_tracker.possession_percentage()}"
+            )
+
+            print(
                 f"Total Passes: "
-                f"{pass_detector.total_passes()}"
+                f"{pass_detector.total_passes()} "
+                f"(successful: {pass_detector.successful_passes()}, "
+                f"failed: {pass_detector.failed_passes()})"
             )
 
             print()
@@ -370,9 +514,14 @@ def run(video_path):
                     .get(player["id"])
                 )
 
+                zone = classify_position(
+                    player["court_position"][0],
+                    player["court_position"][1],
+                )
+
                 print(
                     f"Player {player['id']} | "
-                    f"Team: {team}"
+                    f"Team: {team} | Zone: {zone}"
                 )
 
                 print(
@@ -400,8 +549,14 @@ def run(video_path):
                     start=1,
                 ):
 
+                    status = (
+                        "✅"
+                        if pass_event["success"]
+                        else "❌"
+                    )
+
                     print(
-                        f"{index}. "
+                        f"{index}. {status} "
                         f"{pass_event['from']} "
                         f"→ "
                         f"{pass_event['to']}"
@@ -422,7 +577,6 @@ def run(video_path):
     cv2.destroyAllWindows()
 
     print()
-
     print(
         f"Stored {len(match.get_all_frames())} frames."
     )
@@ -432,7 +586,7 @@ def run(video_path):
     print("First stored frame:")
 
     print(
-        match.get_frame(0)
+        match.get_frame(1)
     )
 
     print()
@@ -450,7 +604,12 @@ def run(video_path):
 
     print(
         f"Trajectory Points: "
-        f"{len(ball_tracker.positions)}"
+        f"{len(ball_tracker.trajectory)}"
+    )
+
+    print(
+        f"Velocity: "
+        f"{ball_tracker.get_velocity()}"
     )
 
     print()
@@ -467,6 +626,16 @@ def run(video_path):
         f"{len(possession_tracker.get_history())}"
     )
 
+    print(
+        f"Timeline Entries: "
+        f"{len(possession_tracker.get_timeline())}"
+    )
+
+    print(
+        f"Team Possession %: "
+        f"{possession_tracker.possession_percentage()}"
+    )
+
     print()
 
     print("Pass Summary")
@@ -476,16 +645,76 @@ def run(video_path):
         f"{pass_detector.total_passes()}"
     )
 
+    print(
+        f"Successful: "
+        f"{pass_detector.successful_passes()}"
+    )
+
+    print(
+        f"Failed: "
+        f"{pass_detector.failed_passes()}"
+    )
+
+    print("Pass Map:")
+
+    for (from_player, to_player), count in sorted(
+        pass_detector.get_pass_map().items()
+    ):
+        print(
+            f"  Player {from_player} → Player {to_player}: {count}"
+        )
+
+    print("Passing Network (per team):")
+
+    for team, network in (
+        pass_detector.get_passing_network().items()
+    ):
+        print(f"  {team}: {network}")
+
     for index, pass_event in enumerate(
         pass_detector.get_all_passes(),
         start=1,
     ):
-
         print(
             f"Pass {index}: "
             f"{pass_event['from']} "
             f"→ "
-            f"{pass_event['to']}"
+            f"{pass_event['to']} "
+            f"({'success' if pass_event['success'] else 'FAILED'})"
+        )
+
+    print()
+
+    print("Shot Summary")
+
+    print(
+        f"Total Attempts: "
+        f"{shot_detector.total_shots()}"
+    )
+
+    print(
+        f"FG%: "
+        f"{shot_detector.field_goal_percentage()}"
+    )
+
+    print(
+        f"3PT%: "
+        f"{shot_detector.three_point_percentage()}"
+    )
+
+    chart = shot_detector.get_shot_chart()
+
+    print(
+        f"Shot Chart Entries: {len(chart)}"
+    )
+
+    for shot in chart:
+        print(
+            f"  Player {shot['player']} "
+            f"{shot['shot_type']} from {shot['court_position']} "
+            f"zone={shot['zone']} "
+            f"{'MADE' if shot['made'] else 'miss'} "
+            f"ESV={shot['esv']}"
         )
 
     print()
@@ -498,4 +727,4 @@ def run(video_path):
 
 
 if __name__ == "__main__":
-    run("/content/CourtVision/footage.mp4")
+    run(config.VIDEO_PATH)
