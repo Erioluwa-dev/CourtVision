@@ -60,6 +60,13 @@ class CourtMapper:
             self.court_points,
         )
 
+    def is_ready(self):
+        """
+        True once a homography has been computed.
+        """
+
+        return self.homography is not None
+
     def pixel_to_court(
         self,
         pixel,
