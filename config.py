@@ -29,6 +29,9 @@ PLAYER_CONFIDENCE = 0.5
 BALL_CONFIDENCE = 0.25
 RIM_CONFIDENCE = 0.4
 
+# Ball model class label(s). Discover with diagnostics/check_ball_model.py.
+BALL_CLASS_NAMES = ["ball"]
+
 # How often (frames) the tracker debug dump and progress log runs.
 LOG_EVERY_N_FRAMES = 100
 

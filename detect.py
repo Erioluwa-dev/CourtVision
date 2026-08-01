@@ -81,7 +81,7 @@ def detect_players(player_model, frame, confidence=0.5):
 
 def detect_ball(ball_model, frame, confidence=0.25):
     result = run_detection(ball_model, frame, conf=confidence)
-    boxes = _get_boxes(result, ["ball"])  # matches your custom model's class
+    boxes = _get_boxes(result, config.BALL_CLASS_NAMES)
     balls = filter_boxes(boxes, confidence)
     return balls[0] if balls else None
 

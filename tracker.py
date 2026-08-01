@@ -80,14 +80,26 @@ def centroid_distance(
 def run_tracker(
     model,
     frame,
+    conf=0.25,
+    classes=None,
 ):
     """
     Run YOLO tracking.
+
+    conf    - minimum detection confidence. The COCO model happily
+              reports crowd members at conf 0.10-0.25 on broadcast
+              footage, so callers should pass their configured
+              threshold (e.g. config.PLAYER_CONFIDENCE) here.
+    classes - optional COCO class id list (e.g. [0] for person) to
+              keep the tracker from returning non-player objects.
     """
 
     results = model.track(
         frame,
         persist=True,
+        conf=conf,
+        classes=classes,
+        verbose=False,
     )
 
     return results[0]

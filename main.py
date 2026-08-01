@@ -210,6 +210,8 @@ def run(video_path):
         result = run_tracker(
             player_model,
             frame,
+            conf=config.PLAYER_CONFIDENCE,
+            classes=[0],  # COCO class 0 = person
         )
 
         if frame_count % 100 == 0:
