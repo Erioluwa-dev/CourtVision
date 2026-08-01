@@ -1,5 +1,6 @@
 import sys
 import os
+import argparse
 import cv2
 
 # Fallback for cv2_imshow when not running in Google Colab
@@ -13,6 +14,8 @@ except ImportError:
         cv2.waitKey(1)
 
 import config
+
+from export import export_game
 
 from team import TeamClassifier
 from stats import PlayerStats
@@ -104,9 +107,15 @@ def rim_box_center(rim_box):
     return rim_center(rim_box)
 
 
-def run(video_path):
+def run(video_path, output_dir=None):
     """
     Run the complete CourtVision pipeline.
+
+    Args:
+        video_path: path to the input video.
+        output_dir: when given, spools the full frame record to
+            JSONL and exports frames.json, summary.json and
+            rendered heatmaps into this directory.
     """
 
     if not os.path.exists(video_path):
@@ -118,10 +127,17 @@ def run(video_path):
 
     player_model, ball_model, rim_model = load_models()
 
+    spool_path = (
+        os.path.join(output_dir, "spool.jsonl")
+        if output_dir
+        else None
+    )
+
     trajectory_tracker = TrajectoryTracker()
     player_stats = PlayerStats()
     match = MatchData(
         sample_every=config.MATCH_FRAME_SAMPLING,
+        spool_path=spool_path,
     )
 
     team_classifier = TeamClassifier()
@@ -746,6 +762,57 @@ def run(video_path):
         f"Total frames processed: {frame_count}"
     )
 
+    if output_dir:
+
+        print()
+        print(f"📦 Exporting to {output_dir}...")
+
+        exports = export_game(
+            output_dir,
+            match,
+            heatmaps,
+            possession_tracker,
+            pass_detector,
+            shot_detector,
+            player_stats,
+            team_classifier,
+        )
+
+        print(f"✅ Frames written to {exports['frames']}")
+        print(f"✅ Summary written to {exports['summary']}")
+        print("✅ Heatmaps written:")
+
+        for path in exports["heatmaps"]:
+            print(f"   - {path}")
+
+        if spool_path:
+            print(
+                f"✅ Full frame spool written to {spool_path}"
+            )
+
 
 if __name__ == "__main__":
-    run(config.VIDEO_PATH)
+
+    parser = argparse.ArgumentParser(
+        description="CourtVision basketball analytics pipeline."
+    )
+
+    parser.add_argument(
+        "video_path",
+        nargs="?",
+        default=config.VIDEO_PATH,
+        help="Path to the input video.",
+    )
+
+    parser.add_argument(
+        "--output",
+        default=config.OUTPUT_DIR,
+        help="Directory for exported frames, summary and heatmaps.",
+    )
+
+    args = parser.parse_args()
+
+    run(
+        args.video_path,
+        output_dir=args.output,
+    )

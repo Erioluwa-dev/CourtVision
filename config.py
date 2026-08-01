@@ -185,3 +185,11 @@ HEATMAP_BIN_SIZE_M = 0.5
 # frames; sampling bounds RAM while the JSONL spool keeps the full
 # record on disk when the pipeline is given an output directory.
 MATCH_FRAME_SAMPLING = 5
+
+# ============================================================
+# Pipeline output (export.py)
+# ============================================================
+# When set, the pipeline writes frames.json, summary.json and
+# rendered heatmap images into this directory, and spools the
+# full frame record to spool.jsonl alongside them.
+OUTPUT_DIR = None
