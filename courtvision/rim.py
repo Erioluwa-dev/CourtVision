@@ -17,8 +17,7 @@ with detect.box_to_coords output.
 
 import cv2
 import numpy as np
-
-import config
+from . import config
 
 
 def _mask_contours(mask):

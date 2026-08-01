@@ -15,8 +15,7 @@ zooms may fail the fit gate and require manual points.
 
 import cv2
 import numpy as np
-
-import config
+from . import config
 
 
 def _to_horizontal(line):

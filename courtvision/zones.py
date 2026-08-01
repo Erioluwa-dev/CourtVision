@@ -18,7 +18,7 @@ is the backcourt.
 
 import math
 
-import config
+from . import config
 
 
 def _corner_side(y, half_width):

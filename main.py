@@ -1,8 +1,7 @@
 import argparse
 
-import config
-
-from pipeline import run
+from courtvision import config
+from courtvision.pipeline import run
 
 
 if __name__ == "__main__":

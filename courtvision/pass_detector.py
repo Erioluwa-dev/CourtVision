@@ -15,7 +15,7 @@ The original event shape is preserved: every event keeps "from"
 and "to" keys, plus richer metadata.
 """
 
-import config
+from . import config
 
 
 class PassDetector:

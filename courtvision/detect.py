@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 
-import config
-from rim import detect_rim_box
+from . import config
+from .rim import detect_rim_box
 
 
 # ============================================================

@@ -17,13 +17,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import config  # noqa: E402
-from zones import classify_position  # noqa: E402
-from ball import BallTracker  # noqa: E402
-from possession import PossessionTracker  # noqa: E402
-from pass_detector import PassDetector  # noqa: E402
-from shot_detector import ShotDetector  # noqa: E402
-from team import TeamClassifier  # noqa: E402
+from courtvision import config  # noqa: E402
+from courtvision.zones import classify_position  # noqa: E402
+from courtvision.ball import BallTracker  # noqa: E402
+from courtvision.possession import PossessionTracker  # noqa: E402
+from courtvision.pass_detector import PassDetector  # noqa: E402
+from courtvision.shot_detector import ShotDetector  # noqa: E402
+from courtvision.team import TeamClassifier  # noqa: E402
 
 PASSED = 0
 FAILED = 0

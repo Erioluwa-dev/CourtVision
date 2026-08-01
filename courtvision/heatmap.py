@@ -16,7 +16,7 @@ import math
 import cv2
 import numpy as np
 
-import config
+from . import config
 
 
 class HeatmapGenerator:

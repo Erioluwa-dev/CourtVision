@@ -18,8 +18,8 @@ get_all_shots, total_shots, latest_shot) are preserved.
 
 import math
 
-import config
-from zones import classify_position
+from . import config
+from .zones import classify_position
 
 
 class ShotDetector:

@@ -1,8 +1,8 @@
 
 import cv2
 
-from vision import draw_box
-from detect import box_to_coords
+from .vision import draw_box
+from .detect import box_to_coords
 
 
 # ============================================================

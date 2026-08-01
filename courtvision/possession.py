@@ -16,7 +16,7 @@ Adds to the original nearest-player heuristic:
     percentages.
 """
 
-import config
+from . import config
 
 
 class PossessionTracker:

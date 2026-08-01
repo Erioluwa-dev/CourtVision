@@ -10,37 +10,37 @@ export of frames, summary and heatmaps to an output directory.
 import os
 import cv2
 
-import config
+from . import config
 
-from export import export_game
+from .export import export_game
 
-from team import TeamClassifier
-from stats import PlayerStats
-from data import MatchData
-from trajectory import TrajectoryTracker
-from ball import BallTracker
-from possession import PossessionTracker
-from pass_detector import PassDetector
-from commentary import CommentaryEngine
-from shot_detector import ShotDetector
-from court import CourtMapper
-from hoop import HoopTracker
-from zones import classify_position
-from heatmap import HeatmapGenerator
-from court_detection import (
+from .team import TeamClassifier
+from .stats import PlayerStats
+from .data import MatchData
+from .trajectory import TrajectoryTracker
+from .ball import BallTracker
+from .possession import PossessionTracker
+from .pass_detector import PassDetector
+from .commentary import CommentaryEngine
+from .shot_detector import ShotDetector
+from .court import CourtMapper
+from .hoop import HoopTracker
+from .zones import classify_position
+from .heatmap import HeatmapGenerator
+from .court_detection import (
     detect_court_lines,
     setup_court_mapper,
     draw_court_lines,
 )
-from rim import rim_center
+from .rim import rim_center
 
-from vision import (
+from .vision import (
     load_video,
     read_frame,
     release_video,
 )
 
-from tracker import (
+from .tracker import (
     run_tracker,
     track_players,
     build_tracked_ball,
@@ -48,7 +48,7 @@ from tracker import (
     debug_detections,
 )
 
-from detect import (
+from .detect import (
     load_models,
     detect_ball,
     detect_rim,
