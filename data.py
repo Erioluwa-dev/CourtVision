@@ -3,7 +3,14 @@ MatchData (Phase 1 - per-frame output).
 
 Stores a structured record for every processed frame: players,
 ball, rim and court state, plus possession at that frame.
+
+Memory-bounded: a full game at 30fps would otherwise hold ~86k
+frame dicts in RAM. When spool_path is set every frame is appended
+to a JSONL file as it arrives, and only every sample_every-th frame
+is kept in memory.
 """
+
+import json
 
 
 class MatchData:
@@ -11,8 +18,14 @@ class MatchData:
     Stores every frame of a basketball game.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        sample_every=1,
+        spool_path=None,
+    ):
         self.frames = []
+        self.sample_every = max(1, sample_every)
+        self.spool_path = spool_path
 
     def add_frame(
         self,
@@ -44,7 +57,14 @@ class MatchData:
             "possession": possession_player,
         }
 
-        self.frames.append(frame_data)
+        if self.spool_path:
+
+            with open(self.spool_path, "a") as f:
+                json.dump(frame_data, f)
+                f.write("\n")
+
+        if frame_number % self.sample_every == 0:
+            self.frames.append(frame_data)
 
     def get_frame(
         self,
@@ -65,7 +85,22 @@ class MatchData:
         self,
     ):
         """
-        Return the entire match.
+        Return the entire match (in-memory sample).
         """
 
         return self.frames
+
+    def save(
+        self,
+        path,
+    ):
+        """
+        Write the in-memory frames to a JSON file.
+        """
+
+        with open(path, "w") as f:
+            json.dump(
+                {"frames": self.frames},
+                f,
+                indent=2,
+            )

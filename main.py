@@ -120,7 +120,9 @@ def run(video_path):
 
     trajectory_tracker = TrajectoryTracker()
     player_stats = PlayerStats()
-    match = MatchData()
+    match = MatchData(
+        sample_every=config.MATCH_FRAME_SAMPLING,
+    )
 
     team_classifier = TeamClassifier()
 
@@ -603,9 +605,10 @@ def run(video_path):
 
     print("First stored frame:")
 
-    print(
-        match.get_frame(1)
-    )
+    stored_frames = match.get_all_frames()
+
+    if stored_frames:
+        print(stored_frames[0])
 
     print()
 

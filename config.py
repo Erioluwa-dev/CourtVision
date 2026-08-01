@@ -176,3 +176,12 @@ ESV_MAKE_DECAY = 0.08
 # ============================================================
 # Bin size in metres for the court-space heatmap grid.
 HEATMAP_BIN_SIZE_M = 0.5
+
+
+# ============================================================
+# Match data storage (data.py)
+# ============================================================
+# Keep every Nth frame in memory. A full game at 30fps is ~86k
+# frames; sampling bounds RAM while the JSONL spool keeps the full
+# record on disk when the pipeline is given an output directory.
+MATCH_FRAME_SAMPLING = 5
