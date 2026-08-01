@@ -139,6 +139,13 @@ POSSESSION_LOOSE_AFTER_FRAMES = 3
 # counts the preceding possession as a failed pass / turnover.
 PASS_FAIL_LOOSE_FRAMES = 8
 
+# Minimum consecutive loose-ball frames between two possessions for
+# a pass to be recorded. A possession that switches with no real
+# in-flight gap is almost always ByteTrack ID flicker or a loose-ball
+# recovery, not a pass - rebounds and steals are filtered out by
+# requiring the ball to actually be in flight.
+PASS_MIN_LOOSE_FRAMES = 2
+
 
 # ============================================================
 # Phase 6 — Shooting engine (shot_detector.py)

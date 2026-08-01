@@ -141,6 +141,16 @@ class PassDetector:
         # Classify it as a pass.
         # ----------------------------
 
+        # A real pass needs the ball in flight for at least
+        # PASS_MIN_LOOSE_FRAMES. A possession that switches with no
+        # loose gap is ByteTrack ID flicker or a loose-ball recovery
+        # (rebound, steal), not a pass.
+        if self._loose_frames < config.PASS_MIN_LOOSE_FRAMES:
+            self._last_valid_possessor = current_possessor
+            self._last_possession_frame = frame_number
+            self._loose_frames = 0
+            return
+
         self.record_pass(
             self._last_valid_possessor,
             current_possessor,

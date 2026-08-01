@@ -342,7 +342,8 @@ def test_passes():
     # Player 2 -> Player 3 (other team): failed pass.
     detector.update(2, frame_number=4, team_lookup=team_lookup)
     detector.update(None, frame_number=5, team_lookup=team_lookup)
-    detector.update(3, frame_number=6, team_lookup=team_lookup)
+    detector.update(None, frame_number=6, team_lookup=team_lookup)
+    detector.update(3, frame_number=7, team_lookup=team_lookup)
 
     check(
         "Cross-team possession change = failed pass",
@@ -370,6 +371,16 @@ def test_passes():
         (1, 2) in network.get("Team A", {})
         and (2, 3) not in network.get("Team A", {})
         and (2, 3) not in network.get("Team B", {}),
+    )
+
+    # A possession that switches with no loose gap is tracker ID
+    # flicker / a loose-ball recovery - it must NOT be a pass.
+    detector.update(3, frame_number=8, team_lookup=team_lookup)
+    detector.update(4, frame_number=9, team_lookup=team_lookup)
+
+    check(
+        "Direct switch with no loose gap is not a pass",
+        detector.total_passes() == 2,
     )
 
 
