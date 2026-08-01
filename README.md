@@ -14,7 +14,13 @@ Runtime dependencies (requires a CUDA/Colab environment for reasonable speed):
 pip install -r requirements.txt
 ```
 
-The detection models are loaded from `models/` by default:
+### 2. Download the models
+
+```bash
+python diagnostics/fetch_models.py --ball-url <roboflow-download-url>
+```
+
+The player model (official YOLOv8n) downloads automatically. The ball model is a custom Roboflow-trained detector, so you must pass its download URL; without it the pipeline runs but ball detection is disabled. Pass `--rim-url` if you have a custom rim model. Models land in `models/` by default:
 
 | Model | Default path | Purpose |
 |---|---|---|
@@ -22,9 +28,9 @@ The detection models are loaded from `models/` by default:
 | Ball | `models/basketball_ball_best.pt` | Fine-tuned basketball detector (Roboflow) |
 | Rim | `models/...` (optional) | If unset, a classical-CV rim detector is used |
 
-Set `COURTVISION_MODEL_DIR` to override the model directory, or edit [courtvision/config.py](courtvision/config.py).
+Set `COURTVISION_MODEL_DIR` to override the model directory, or edit [courtvision/config.py](courtvision/config.py). Existing files are skipped, so re-running the downloader is safe.
 
-### 2. Run the pipeline
+### 3. Run the pipeline
 
 ```bash
 py main.py footage.mp4
@@ -43,7 +49,7 @@ This writes:
 - `out/heatmap_*.jpg` — court-space heatmaps
 - `out/spool.jsonl` — full per-frame JSONL spool
 
-### 3. Run the tests
+### 4. Run the tests
 
 The logic test suite needs only the dev requirements (no ML models):
 
@@ -54,7 +60,7 @@ python -m pytest tests/ -q
 
 or standalone: `python tests/test_logic.py`
 
-### 4. Evaluate detection quality
+### 5. Evaluate detection quality
 
 Ground-truth labels against pipeline detections to measure precision/recall/F1:
 
