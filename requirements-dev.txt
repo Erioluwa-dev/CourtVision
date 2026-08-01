@@ -1,0 +1,7 @@
+# Test-only dependencies for the logic test suite (pytest).
+# The full runtime stack (ultralytics, opencv, etc.) lives in
+# requirements.txt; the unit tests do not need the ML models.
+pytest>=8.0
+numpy>=1.24
+opencv-python-headless>=4.8
+scikit-learn>=1.3

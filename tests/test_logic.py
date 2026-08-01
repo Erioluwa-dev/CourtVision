@@ -30,19 +30,17 @@ from courtvision.stats import PlayerStats  # noqa: E402
 from courtvision.trajectory import TrajectoryTracker  # noqa: E402
 from courtvision.hoop import HoopTracker  # noqa: E402
 
-PASSED = 0
-FAILED = 0
-
-
 def check(name, condition):
-    global PASSED, FAILED
+    """
+    Record one assertion. Raises AssertionError on failure so pytest
+    treats each test_* function as a real test case (fail-fast).
+    """
 
     if condition:
-        PASSED += 1
         print(f"  ✅ {name}")
     else:
-        FAILED += 1
         print(f"  ❌ {name}")
+        raise AssertionError(name)
 
 
 def player(pid, x, y):
@@ -932,22 +930,35 @@ def test_hoop_tracker():
 # ============================================================
 
 def main():
-    test_zones()
-    test_ball()
-    test_teams()
-    test_possession()
-    test_passes()
-    test_shot_hidden_ball_timeout()
-    test_shots()
-    test_shot_stale_rim()
-    test_match_data()
-    test_stats_trajectory()
-    test_hoop_tracker()
+    tests = [
+        test_zones,
+        test_ball,
+        test_teams,
+        test_possession,
+        test_passes,
+        test_shot_hidden_ball_timeout,
+        test_shots,
+        test_shot_stale_rim,
+        test_match_data,
+        test_stats_trajectory,
+        test_hoop_tracker,
+    ]
+
+    passed = 0
+    failed = 0
+
+    for test in tests:
+
+        try:
+            test()
+            passed += 1
+        except AssertionError:
+            failed += 1
 
     print()
-    print(f"Results: {PASSED} passed, {FAILED} failed")
+    print(f"Results: {passed} passed, {failed} failed")
 
-    if FAILED:
+    if failed:
         sys.exit(1)
 
     print("All CourtVision logic checks passed.")
