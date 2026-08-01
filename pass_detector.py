@@ -64,6 +64,10 @@ class PassDetector:
 
         self.pass_map[pair] = self.pass_map.get(pair, 0) + 1
 
+        # Failed passes are turnovers, not passes - keep out of the network.
+        if not pass_event.get("success"):
+            return
+
         team = pass_event.get("from_team", "Unknown")
 
         if team not in self.networks:

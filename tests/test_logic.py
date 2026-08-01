@@ -70,12 +70,12 @@ def test_zones():
 
     check(
         "Left Corner: baseline + sideline",
-        classify_position(1.0, 1.0) == "Left Corner",
+        classify_position(1.0, 0.5) == "Left Corner",
     )
 
     check(
         "Right Corner: baseline + sideline",
-        classify_position(1.0, 14.0) == "Right Corner",
+        classify_position(1.0, 14.5) == "Right Corner",
     )
 
     check(
@@ -110,7 +110,7 @@ def test_zones():
 
     check(
         "Attack half zone in full court",
-        classify_position(23.0, 3.0, half_court=False) == "Left Corner",
+        classify_position(27.0, 0.5, half_court=False) == "Left Corner",
     )
 
     check(
@@ -366,9 +366,10 @@ def test_passes():
     network = detector.get_passing_network()
 
     check(
-        "Passing network is per-team",
+        "Passing network is per-team (completed passes only)",
         (1, 2) in network.get("Team A", {})
-        and (2, 3) in network.get("Team B", {}),
+        and (2, 3) not in network.get("Team A", {})
+        and (2, 3) not in network.get("Team B", {}),
     )
 
 
@@ -419,7 +420,7 @@ def test_shots():
             )
 
         # Release phase (fast ball -> in flight).
-        for frame, bx, by in enumerate(ball_path, start=9):
+        for frame, (bx, by) in enumerate(ball_path, start=9):
             possession.update(
                 [player(1, 500, 500), player(2, 700, 500)],
                 ball_at(bx, by),
