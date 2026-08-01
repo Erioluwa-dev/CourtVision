@@ -71,9 +71,13 @@ def detect_court_lines(frame):
 
     segments = []
 
-    for segment in lines[:, 0]:
+    # HoughLinesP shape differs by OpenCV version: (N, 1, 4) or (N, 4).
+    for x1, y1, x2, y2 in lines.reshape(-1, 4):
 
-        x1, y1, x2, y2 = (float(v) * inv for v in segment)
+        x1 = float(x1) * inv
+        y1 = float(y1) * inv
+        x2 = float(x2) * inv
+        y2 = float(y2) * inv
 
         length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
 
