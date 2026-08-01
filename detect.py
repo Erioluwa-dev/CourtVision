@@ -1,8 +1,4 @@
-import os
-import cv2
 from ultralytics import YOLO
-
-from vision import draw_box, extract_frame
 
 import config
 from rim import detect_rim_box
@@ -73,12 +69,6 @@ def filter_boxes(boxes, confidence=0.5):
 # PUBLIC DETECTORS
 # ============================================================
 
-def detect_players(player_model, frame, confidence=0.5):
-    result = run_detection(player_model, frame, conf=confidence)
-    boxes = _get_boxes(result, ["person"])  # COCO's actual class name
-    return filter_boxes(boxes, confidence)
-
-
 def detect_ball(ball_model, frame, confidence=0.25):
     result = run_detection(ball_model, frame, conf=confidence)
     boxes = _get_boxes(result, config.BALL_CLASS_NAMES)
@@ -116,107 +106,3 @@ def box_to_coords(box):
     h = int(y2 - y1)
     confidence = float(box.conf[0])
     return x, y, w, h, confidence
-
-
-# ============================================================
-# DRAWING
-# ============================================================
-
-def annotate_frame(frame, boxes):
-    for box in boxes:
-        x, y, w, h, conf = box_to_coords(box)
-        label = f"{conf:.2f}"
-        frame = draw_box(frame, x, y, w, h, label)
-    return frame
-
-
-# ============================================================
-# VIDEO
-# ============================================================
-
-def process_video(
-    player_model,
-    ball_model,
-    rim_model,
-    video_path,
-    output_dir,
-    every_n_frames=30,
-    player_confidence=0.5,
-    ball_confidence=0.25,
-    rim_confidence=0.4,
-):
-    if not os.path.exists(video_path):
-        raise FileNotFoundError(
-            f"Video not found: {video_path}"
-        )
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    cap = cv2.VideoCapture(video_path)
-    frame_index = 0
-    saved = 0
-
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
-
-        if frame_index % every_n_frames == 0:
-            players = detect_players(player_model, frame, player_confidence)
-            ball = detect_ball(ball_model, frame, ball_confidence)
-            rim = detect_rim(rim_model, frame, rim_confidence)
-
-            all_boxes = list(players)
-            if ball:
-                all_boxes.append(ball)
-            if rim:
-                all_boxes.append(rim)
-
-            annotated = annotate_frame(frame, all_boxes)
-
-            cv2.imwrite(
-                os.path.join(output_dir, f"frame_{frame_index}.jpg"),
-                annotated
-            )
-
-            print(
-                f"Frame {frame_index}: "
-                f"{len(players)} players, "
-                f"{'1' if ball else '0'} ball, "
-                f"{'1' if rim else '0'} rim"
-            )
-            saved += 1
-
-        frame_index += 1
-
-    cap.release()
-    print(f"\nProcessed {saved} frames.")
-    return saved
-
-
-# ============================================================
-# TEST
-# ============================================================
-
-if __name__ == "__main__":
-    player_model, ball_model, rim_model = load_models()
-
-    frame = extract_frame("footage.mp4", 10)
-
-    players = detect_players(player_model, frame)
-    ball = detect_ball(ball_model, frame)
-    rim = detect_rim(rim_model, frame)
-
-    print(f"Players : {len(players)}")
-    print(f"Ball    : {'found' if ball else 'not found'}")
-    print(f"Rim     : {'found' if rim else 'not found'}")
-
-    boxes_to_draw = list(players)
-    if ball:
-        boxes_to_draw.append(ball)
-    if rim:
-        boxes_to_draw.append(rim)
-
-    annotated = annotate_frame(frame, boxes_to_draw)
-    cv2.imwrite("detected_frame.jpg", annotated)
-    print("Saved detected_frame.jpg")
