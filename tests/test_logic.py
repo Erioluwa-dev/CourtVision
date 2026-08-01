@@ -14,6 +14,7 @@ Exits with code 0 when every check passes.
 import math
 import os
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -24,6 +25,10 @@ from courtvision.possession import PossessionTracker  # noqa: E402
 from courtvision.pass_detector import PassDetector  # noqa: E402
 from courtvision.shot_detector import ShotDetector  # noqa: E402
 from courtvision.team import TeamClassifier  # noqa: E402
+from courtvision.data import MatchData  # noqa: E402
+from courtvision.stats import PlayerStats  # noqa: E402
+from courtvision.trajectory import TrajectoryTracker  # noqa: E402
+from courtvision.hoop import HoopTracker  # noqa: E402
 
 PASSED = 0
 FAILED = 0
@@ -759,6 +764,170 @@ def test_shot_stale_rim():
 
 
 # ============================================================
+# MatchData (data.py)
+# ============================================================
+
+def test_match_data():
+    print("\nMatchData - per-frame storage")
+
+    match = MatchData(sample_every=3)
+
+    for frame in range(1, 10):
+        match.add_frame(
+            frame,
+            [player(1, frame * 10, 100)],
+            tracked_ball=ball_at(frame * 5, 200),
+            rim_position=(300, 150),
+            possession_player=1,
+        )
+
+    check(
+        "Sampling keeps every Nth frame in memory",
+        [f["frame"] for f in match.get_all_frames()] == [3, 6, 9],
+    )
+
+    check(
+        "get_frame finds a stored frame",
+        match.get_frame(6)["ball"]["position"] == (30.0, 200.0),
+    )
+
+    check(
+        "get_frame returns None for an unsampled frame",
+        match.get_frame(4) is None,
+    )
+
+    spool_path = os.path.join(
+        tempfile.gettempdir(),
+        "cv_test_spool.jsonl",
+    )
+
+    if os.path.exists(spool_path):
+        os.remove(spool_path)
+
+    spooled = MatchData(
+        sample_every=100,
+        spool_path=spool_path,
+    )
+
+    for frame in range(1, 6):
+        spooled.add_frame(frame, [player(1, 10, 10)])
+
+    with open(spool_path) as f:
+        spool_lines = f.readlines()
+
+    check(
+        "JSONL spool keeps every frame on disk",
+        len(spool_lines) == 5,
+    )
+
+    import json as _json
+
+    check(
+        "Spooled lines parse as JSON",
+        _json.loads(spool_lines[-1])["frame"] == 5,
+    )
+
+    os.remove(spool_path)
+
+
+# ============================================================
+# PlayerStats + TrajectoryTracker (stats.py / trajectory.py)
+# ============================================================
+
+def test_stats_trajectory():
+    print("\nPlayerStats + TrajectoryTracker")
+
+    stats = PlayerStats()
+    trajectory = TrajectoryTracker(stats)
+
+    stats.update([player(1, 0, 0), player(2, 100, 100)])
+    stats.update([player(1, 30, 40), player(2, 100, 100)])
+
+    p1 = stats.get_player(1)
+
+    check(
+        "frames_seen counts updates",
+        p1["frames_seen"] == 2,
+    )
+
+    check(
+        "distance accumulates per-frame moves",
+        abs(p1["distance_pixels"] - 50.0) < 1e-6,
+    )
+
+    check(
+        "trajectory records every position",
+        p1["trajectory"] == [(0.0, 0.0), (30.0, 40.0)],
+    )
+
+    check(
+        "max_speed tracks the fastest frame",
+        p1["max_speed"] == 50.0,
+    )
+
+    check(
+        "TrajectoryTracker delegates to PlayerStats",
+        trajectory.get_trajectory(1) == p1["trajectory"],
+    )
+
+    check(
+        "TrajectoryTracker returns [] for unknown player",
+        trajectory.get_trajectory(99) == [],
+    )
+
+    check(
+        "get_all_trajectories covers every player",
+        sorted(trajectory.get_all_trajectories().keys()) == [1, 2],
+    )
+
+
+# ============================================================
+# HoopTracker (hoop.py)
+# ============================================================
+
+def test_hoop_tracker():
+    print("\nHoopTracker - rim smoothing")
+
+    hoop = HoopTracker(smooth_window=3)
+
+    check(
+        "No positions yet -> smoothed position is None",
+        hoop.get_smoothed_position() is None,
+    )
+
+    hoop.update(None)
+
+    check(
+        "Missing detection marks hoop as not detected",
+        hoop.detected is False,
+    )
+
+    for position in [(300, 200), (310, 205), (320, 210)]:
+        hoop.update(position)
+
+    check(
+        "Hoop is detected after valid positions",
+        hoop.detected is True,
+    )
+
+    smoothed = hoop.get_smoothed_position()
+
+    check(
+        "Smoothed position averages recent detections",
+        abs(smoothed[0] - 310.0) < 1e-6
+        and abs(smoothed[1] - 205.0) < 1e-6,
+    )
+
+    for position in [(330, 215), (340, 220)]:
+        hoop.update(position)
+
+    check(
+        "Smoothing window only averages the most recent frames",
+        abs(hoop.get_smoothed_position()[0] - 330.0) < 1e-6,
+    )
+
+
+# ============================================================
 # Runner
 # ============================================================
 
@@ -771,6 +940,9 @@ def main():
     test_shot_hidden_ball_timeout()
     test_shots()
     test_shot_stale_rim()
+    test_match_data()
+    test_stats_trajectory()
+    test_hoop_tracker()
 
     print()
     print(f"Results: {PASSED} passed, {FAILED} failed")
