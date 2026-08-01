@@ -46,6 +46,7 @@ from vision import (
 from tracker import (
     run_tracker,
     track_players,
+    build_tracked_ball,
     annotate_tracked_frame,
     debug_detections,
 )
@@ -70,26 +71,6 @@ detection (players / ball / rim / court) -> tracking -> homography
 # Ensure the latest version of vision.py is loaded
 if "vision" in sys.modules:
     del sys.modules["vision"]
-
-
-def build_tracked_ball(ball_box):
-    """
-    Convert a raw YOLO ball detection box into the same
-    dict shape the rest of the pipeline (BallTracker,
-    CourtMapper, possession/pass/shot detectors) expects.
-    """
-    if ball_box is None:
-        return None
-
-    x, y, w, h, conf = box_to_coords(ball_box)
-    center_x = x + w / 2
-    center_y = y + h / 2
-
-    return {
-        "position": (center_x, center_y),
-        "bounding_box": (x, y, w, h),
-        "confidence": conf,
-    }
 
 
 def rim_box_center(rim_box):
@@ -133,8 +114,8 @@ def run(video_path, output_dir=None):
         else None
     )
 
-    trajectory_tracker = TrajectoryTracker()
     player_stats = PlayerStats()
+    trajectory_tracker = TrajectoryTracker(player_stats)
     match = MatchData(
         sample_every=config.MATCH_FRAME_SAMPLING,
         spool_path=spool_path,
@@ -292,10 +273,6 @@ def run(video_path, output_dir=None):
         # ---------------------------------
         # Update analytics
         # ---------------------------------
-
-        trajectory_tracker.update(
-            tracked_players,
-        )
 
         player_stats.update(
             tracked_players,

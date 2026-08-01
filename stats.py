@@ -1,5 +1,19 @@
 
-from tracker import centroid_distance
+import math
+
+
+def centroid_distance(
+    point_a,
+    point_b,
+):
+    """
+    Distance between two points.
+    """
+
+    return math.sqrt(
+        (point_a[0] - point_b[0]) ** 2 +
+        (point_a[1] - point_b[1]) ** 2
+    )
 
 
 class PlayerStats:

@@ -1,6 +1,5 @@
 
 import cv2
-import math
 
 from vision import draw_box
 from detect import box_to_coords
@@ -58,19 +57,6 @@ def get_centroid(
         y + h // 2,
     )
 
-
-def centroid_distance(
-    point_a,
-    point_b,
-):
-    """
-    Distance between two points.
-    """
-
-    return math.sqrt(
-        (point_a[0] - point_b[0]) ** 2 +
-        (point_a[1] - point_b[1]) ** 2
-    )
 
 
 # ============================================================
@@ -229,6 +215,9 @@ def build_tracked_ball(
 ):
     """
     Convert YOLO basketball into CourtVision ball.
+
+    The centre uses float division so sub-pixel ball motion
+    survives for the Kalman filter; players use get_centroid.
     """
 
     if box is None:
@@ -240,11 +229,9 @@ def build_tracked_ball(
 
     return {
 
-        "position": get_centroid(
-            x,
-            y,
-            w,
-            h,
+        "position": (
+            x + w / 2,
+            y + h / 2,
         ),
 
         "bounding_box": (
