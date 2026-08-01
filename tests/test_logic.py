@@ -388,6 +388,78 @@ def test_passes():
 # Phase 6 - Shooting engine
 # ============================================================
 
+def test_shot_hidden_ball_timeout():
+    print("\nPhase 6 - Shot hidden-ball timeout")
+
+    detector = ShotDetector()
+    possession = PossessionTracker()
+    team_lookup = {1: "Team A", 2: "Team A"}
+    detector.set_rim_position((600, 300))
+
+    for frame in range(9):
+        possession.update(
+            [player(1, 500, 500), player(2, 700, 500)],
+            ball_at(505, 500),
+            ball_speed=2.0,
+            frame_number=frame,
+            team_lookup=team_lookup,
+        )
+        detector.update(
+            possession,
+            [player(1, 500, 500), player(2, 700, 500)],
+            ball_at(505, 500),
+            frame,
+            mapped_ball={"court_position": (6.0, 7.5)},
+        )
+
+    possession.update(
+        [player(1, 500, 500), player(2, 700, 500)],
+        ball_at(700, 400),
+        ball_speed=60.0,
+        frame_number=9,
+        team_lookup=team_lookup,
+    )
+    detector.update(
+        possession,
+        [player(1, 500, 500), player(2, 700, 500)],
+        ball_at(700, 400),
+        9,
+        mapped_ball={"court_position": (6.0, 7.5)},
+    )
+
+    check(
+        "Attempt started after release",
+        detector.current_attempt is not None,
+    )
+
+    for frame in range(10, 10 + detector.max_attempt_frames + 5):
+        possession.update(
+            [player(1, 500, 500), player(2, 700, 500)],
+            None,
+            ball_speed=0.0,
+            frame_number=frame,
+            team_lookup=team_lookup,
+        )
+        detector.update(
+            possession,
+            [player(1, 500, 500), player(2, 700, 500)],
+            None,
+            frame,
+            mapped_ball={"court_position": (6.0, 7.5)},
+        )
+
+    check(
+        "Hidden ball force-finishes the attempt",
+        detector.current_attempt is None
+        and detector.total_shots() == 1,
+    )
+
+    check(
+        "Hidden-ball outcome is not silently 'made'",
+        detector.latest_shot()["made"] is False,
+    )
+
+
 def test_shots():
     print("\nPhase 6 - Shooting engine")
 
@@ -565,6 +637,7 @@ def main():
     test_ball()
     test_possession()
     test_passes()
+    test_shot_hidden_ball_timeout()
     test_shots()
 
     print()

@@ -394,6 +394,17 @@ class ShotDetector:
 
         # Ball is not visible.
         if tracked_ball is None:
+
+            # The attempt must still be closed out while the ball is
+            # hidden - otherwise a ball lost to occlusion leaves the
+            # attempt open forever and swallows the next shot.
+            if self.current_attempt is not None:
+
+                elapsed = frame_number - self.current_attempt["start_frame"]
+
+                if elapsed > self.max_attempt_frames:
+                    self.finish_attempt(frame_number)
+
             return
 
         # ----------------------------
