@@ -255,13 +255,21 @@ def run(video_path):
             result,
         )
 
-        mapped_players = court_mapper.map_players(
-            tracked_players,
-        )
+        # Court-space analytics (zones, heatmaps, shot distance) are
+        # only meaningful when the court quad was auto-detected. With
+        # the manual fallback quad the homography is garbage, so the
+        # unmapped dicts flow through and those analytics stay empty.
+        if court_info["auto"]:
+            mapped_players = court_mapper.map_players(
+                tracked_players,
+            )
 
-        mapped_ball = court_mapper.map_ball(
-            tracked_ball,
-        )
+            mapped_ball = court_mapper.map_ball(
+                tracked_ball,
+            )
+        else:
+            mapped_players = tracked_players
+            mapped_ball = tracked_ball
 
         # ---------------------------------
         # Update analytics
@@ -516,9 +524,17 @@ def run(video_path):
                     .get(player["id"])
                 )
 
-                zone = classify_position(
-                    player["court_position"][0],
-                    player["court_position"][1],
+                court_position = player.get(
+                    "court_position"
+                )
+
+                zone = (
+                    classify_position(
+                        court_position[0],
+                        court_position[1],
+                    )
+                    if court_position is not None
+                    else "N/A"
                 )
 
                 print(
@@ -537,7 +553,7 @@ def run(video_path):
                 )
                 print(
                     f"Court Position: "
-                    f"{player['court_position']}"
+                    f"{player.get('court_position', 'N/A')}"
                 )
 
                 print()
