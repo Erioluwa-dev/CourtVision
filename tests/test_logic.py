@@ -546,13 +546,13 @@ def test_shots():
 
     made_path = [
         (520, 490),
-        (535, 475),
-        (550, 455),
-        (565, 435),
-        (580, 415),
-        (592, 395),
-        (600, 365),
-        (598, 340),
+        (540, 460),
+        (560, 420),
+        (575, 380),
+        (590, 350),
+        (596, 330),
+        (600, 355),
+        (601, 395),
     ]
 
     detector = run_scenario(
@@ -582,6 +582,11 @@ def test_shots():
     check(
         "ESV is a positive value",
         shot["esv"] is not None and shot["esv"] > 0,
+    )
+
+    check(
+        "Outcome resolved (rim was seen)",
+        shot["outcome_known"] is True,
     )
 
     check(
@@ -628,6 +633,75 @@ def test_shots():
     )
 
 
+def test_shot_stale_rim():
+    print("\nPhase 6 - Shot stale rim")
+
+    detector = ShotDetector()
+    possession = PossessionTracker()
+    team_lookup = {1: "Team A", 2: "Team A"}
+
+    # Rim last seen at frame 0; the attempt resolves at frame 150.
+    detector.set_rim_position((600, 300), frame=0)
+
+    for frame in range(9):
+        possession.update(
+            [player(1, 500, 500), player(2, 700, 500)],
+            ball_at(505, 500),
+            ball_speed=2.0,
+            frame_number=frame,
+            team_lookup=team_lookup,
+        )
+        detector.update(
+            possession,
+            [player(1, 500, 500), player(2, 700, 500)],
+            ball_at(505, 500),
+            frame,
+            mapped_ball={"court_position": (6.0, 7.5)},
+        )
+
+    for frame, (bx, by) in enumerate(
+        [(520, 490), (596, 330), (600, 355), (601, 395)],
+        start=9,
+    ):
+        possession.update(
+            [player(1, 500, 500), player(2, 700, 500)],
+            ball_at(bx, by),
+            ball_speed=60.0,
+            frame_number=frame,
+            team_lookup=team_lookup,
+        )
+        detector.update(
+            possession,
+            [player(1, 500, 500), player(2, 700, 500)],
+            ball_at(bx, by),
+            frame,
+            mapped_ball={"court_position": (6.0, 7.5)},
+        )
+
+    for frame in range(13, 165):
+        possession.update(
+            [player(1, 500, 500), player(2, 700, 500)],
+            ball_at(601, 400),
+            ball_speed=5.0,
+            frame_number=frame,
+            team_lookup=team_lookup,
+        )
+        detector.update(
+            possession,
+            [player(1, 500, 500), player(2, 700, 500)],
+            ball_at(601, 400),
+            frame,
+            mapped_ball={"court_position": (6.0, 7.5)},
+        )
+
+    check(
+        "Stale rim -> outcome marked unknown (not a false 'made')",
+        detector.total_shots() == 1
+        and detector.latest_shot()["made"] is False
+        and detector.latest_shot()["outcome_known"] is False,
+    )
+
+
 # ============================================================
 # Runner
 # ============================================================
@@ -639,6 +713,7 @@ def main():
     test_passes()
     test_shot_hidden_ball_timeout()
     test_shots()
+    test_shot_stale_rim()
 
     print()
     print(f"Results: {PASSED} passed, {FAILED} failed")

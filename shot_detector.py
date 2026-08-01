@@ -49,6 +49,9 @@ class ShotDetector:
         # detector each frame.
         self.rim_position = None
 
+        # Frame the rim position was last refreshed from a detection.
+        self.rim_last_frame = None
+
         # Maximum frames an attempt may stay open before it is
         # force-finished (ball out of bounds, never regained).
         self.max_attempt_frames = 150
@@ -67,12 +70,44 @@ class ShotDetector:
     # Helpers
     # --------------------------------------------------------
 
-    def set_rim_position(self, rim_position):
+    def set_rim_position(self, rim_position, frame=None):
         """
         Feed the current rim centre (x, y) from the rim detector.
         """
 
         self.rim_position = rim_position
+
+        if frame is not None:
+            self.rim_last_frame = frame
+
+    @staticmethod
+    def _ball_descending(ball_points, bx, by):
+        """
+        True when the ball was moving downward (image y increasing)
+        as it crossed the rim plane, so a rising ball passing under
+        the rim (floater, lob, pass) is not counted as a make.
+        """
+
+        if len(ball_points) < 2:
+            return True
+
+        index = len(ball_points)
+
+        for i, (px, py) in enumerate(ball_points):
+            if px == bx and py == by:
+                index = i
+                break
+
+        before = ball_points[index - 1] if index > 0 else None
+        after = ball_points[index + 1] if index < len(ball_points) - 1 else None
+
+        if after is not None:
+            return after[1] > by
+
+        if before is not None:
+            return by > before[1]
+
+        return True
 
     @staticmethod
     def _expected_shot_value(distance_m, points):
@@ -153,10 +188,21 @@ class ShotDetector:
 
         if made is None:
 
-            if self.rim_position is None:
+            rim_stale = (
+                self.rim_position is None
+                or (
+                    self.rim_last_frame is not None
+                    and frame_number is not None
+                    and (
+                        frame_number - self.rim_last_frame
+                    ) > config.SHOT_RIM_MAX_STALE_FRAMES
+                )
+            )
 
-                # No rim information: treat as a miss (original
-                # behaviour) and mark the outcome as unknown.
+            if rim_stale:
+
+                # No usable rim information (never seen or stale):
+                # treat as a miss and mark the outcome as unknown.
                 attempt["made"] = False
                 attempt["outcome_known"] = False
 
@@ -179,11 +225,18 @@ class ShotDetector:
                     if distance_to_rim <= config.SHOT_RIM_PROXIMITY_PX:
                         reached = True
 
-                    # Ball crosses below the rim plane within the
-                    # rim's horizontal window -> likely a make.
+                    # The ball must descend through the rim plane
+                    # within the rim's horizontal window. A rising
+                    # ball below the rim is a floater/lob, not a
+                    # made shot.
                     if (
                         abs(bx - rim_x) <= config.SHOT_RIM_PROXIMITY_PX
                         and by > rim_y + config.SHOT_RIM_CLEARANCE_PX
+                        and self._ball_descending(
+                            ball_points,
+                            bx,
+                            by,
+                        )
                     ):
                         went_through = True
 
@@ -346,6 +399,7 @@ class ShotDetector:
                 "frame": s["start_frame"],
                 "court_position": s.get("court_position"),
                 "made": s.get("made"),
+                "outcome_known": s.get("outcome_known"),
                 "shot_type": s.get("shot_type"),
                 "points": s.get("points"),
                 "esv": s.get("esv"),
@@ -507,5 +561,7 @@ class ShotDetector:
 
             elif elapsed > self.max_attempt_frames:
 
-                # Ball never regained: out of bounds.
-                self.finish_attempt(frame_number, made=False)
+                # Ball never regained: out of bounds. Resolve from
+                # rim data when available; otherwise the outcome is
+                # unknown rather than a forced miss.
+                self.finish_attempt(frame_number)

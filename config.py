@@ -159,6 +159,10 @@ SHOT_RIM_PROXIMITY_PX = 80
 # Ball must be this many px below the rim centre (image space)
 # to be considered as having gone through.
 SHOT_RIM_CLEARANCE_PX = 25
+# Rim positions older than this many frames are stale - shot
+# outcomes are not resolved from a stale rim (camera cut, wrong
+# hoop detected, etc.).
+SHOT_RIM_MAX_STALE_FRAMES = 15
 # Expected Shot Value make-probability model.
 #   p_make(distance_m) = ESV_MAKE_BASE * exp(-ESV_MAKE_DECAY * distance_m)
 # Fitted roughly to league-average shooting (0.65 at the rim,
