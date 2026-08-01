@@ -11,6 +11,9 @@ class TeamClassifier:
     def __init__(self):
         self.teams = {}
         self.colors = {}
+        # team name -> cluster centre colour (persisted so team names
+        # do not flip when player ids change or colours drift).
+        self.team_centers = {}
 
     def assign_team(
         self,
@@ -51,43 +54,59 @@ class TeamClassifier:
         bounding_box,
     ):
         """
-        Crop only the player's jersey.
+        Crop the centre band of the player box (the torso), avoiding
+        the head, arms and background at the edges.
         """
 
         x, y, w, h = bounding_box
 
-        jersey_top = y + int(h * 0.20)
-        jersey_bottom = y + int(h * 0.60)
+        x1 = x + int(w * 0.15)
+        x2 = x + int(w * 0.85)
+        y1 = y + int(h * 0.25)
+        y2 = y + int(h * 0.55)
 
-        jersey = frame[
-            jersey_top:jersey_bottom,
-            x:x + w,
-        ]
-
-        return jersey
+        return frame[y1:y2, x1:x2]
 
     def average_jersey_color(
         self,
         jersey,
     ):
         """
-        Calculate the average BGR color
-        of a jersey image.
+        Median BGR colour of the saturated jersey pixels, so skin,
+        background and shadow pixels do not pollute the team colour.
         """
 
         if jersey.size == 0:
             return (0, 0, 0)
 
+        hsv = cv2.cvtColor(
+            jersey,
+            cv2.COLOR_BGR2HSV,
+        )
+
+        saturated = hsv[:, :, 1] >= 60
+
+        if saturated.any():
+
+            bgr = jersey[saturated]
+
+            median = np.median(
+                bgr.reshape(-1, 3),
+                axis=0,
+            )
+
+            return (
+                int(median[0]),
+                int(median[1]),
+                int(median[2]),
+            )
+
         average = cv2.mean(jersey)
 
-        blue = int(average[0])
-        green = int(average[1])
-        red = int(average[2])
-
         return (
-            blue,
-            green,
-            red,
+            int(average[0]),
+            int(average[1]),
+            int(average[2]),
         )
 
     def store_color(
@@ -126,7 +145,8 @@ class TeamClassifier:
         )
 
         colors = np.array(
-            list(self.colors.values())
+            list(self.colors.values()),
+            dtype=np.float32,
         )
 
         kmeans = KMeans(
@@ -139,18 +159,81 @@ class TeamClassifier:
             colors,
         )
 
+        centers = kmeans.cluster_centers_
+
+        assigned = self._assign_clusters(
+            centers,
+        )
+
         for player_id, label in zip(
             player_ids,
             labels,
         ):
 
-            team = (
-                "Team A"
-                if label == 0
-                else "Team B"
-            )
-
             self.assign_team(
                 player_id,
-                team,
+                assigned[label],
             )
+
+        self.team_centers = {
+            team: centers[label].tolist()
+            for label, team in assigned.items()
+        }
+
+    def _assign_clusters(
+        self,
+        centers,
+    ):
+        """
+        Map each cluster index to a stable team name by matching its
+        centre colour to the closest previously established team,
+        so re-classification never flips Team A / Team B.
+        """
+
+        teams = ["Team A", "Team B"]
+
+        used = set()
+
+        assigned = {}
+
+        for label, center in enumerate(centers):
+
+            if not self.team_centers:
+
+                team = teams[label]
+
+            else:
+
+                best_team = None
+                best_distance = float("inf")
+
+                for team, old_center in self.team_centers.items():
+
+                    distance = np.linalg.norm(
+                        center - np.array(old_center)
+                    )
+
+                    if distance < best_distance:
+                        best_distance = distance
+                        best_team = team
+
+                if best_team in used:
+
+                    team = next(
+                        (
+                            candidate
+                            for candidate in teams
+                            if candidate not in used
+                        ),
+                        best_team,
+                    )
+
+                else:
+
+                    team = best_team
+
+            assigned[label] = team
+
+            used.add(team)
+
+        return assigned

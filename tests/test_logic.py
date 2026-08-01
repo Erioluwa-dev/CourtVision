@@ -23,6 +23,7 @@ from ball import BallTracker  # noqa: E402
 from possession import PossessionTracker  # noqa: E402
 from pass_detector import PassDetector  # noqa: E402
 from shot_detector import ShotDetector  # noqa: E402
+from team import TeamClassifier  # noqa: E402
 
 PASSED = 0
 FAILED = 0
@@ -229,6 +230,61 @@ def test_ball():
     )
 
     config.BALL_SMOOTHING = "kalman"
+
+
+# ============================================================
+# Phase 4 - Team classifier
+# ============================================================
+
+def test_teams():
+    print("\nPhase 4 - Team classifier")
+
+    classifier = TeamClassifier()
+
+    # Two clusters of BGR jersey colours.
+    for pid, color in [
+        (1, (200, 60, 30)),
+        (2, (210, 50, 25)),
+        (3, (30, 200, 220)),
+        (4, (25, 210, 230)),
+    ]:
+        classifier.store_color(pid, color)
+
+    classifier.classify_teams()
+
+    teams1 = dict(classifier.get_all_teams())
+
+    check(
+        "Two distinct teams assigned",
+        len(set(teams1.values())) == 2,
+    )
+
+    check(
+        "Same-coloured players share a team",
+        teams1[1] == teams1[2]
+        and teams1[3] == teams1[4]
+        and teams1[1] != teams1[3],
+    )
+
+    # Reclassify with slightly drifted colours - the team names must
+    # not flip between runs.
+    for pid, color in [
+        (1, (205, 65, 35)),
+        (2, (215, 55, 28)),
+        (3, (35, 205, 225)),
+        (4, (28, 215, 235)),
+    ]:
+        classifier.store_color(pid, color)
+
+    classifier.classify_teams()
+
+    teams2 = classifier.get_all_teams()
+
+    check(
+        "Team assignment stable across reclassification",
+        teams2[1] == teams1[1]
+        and teams2[3] == teams1[3],
+    )
 
 
 # ============================================================
@@ -709,6 +765,7 @@ def test_shot_stale_rim():
 def main():
     test_zones()
     test_ball()
+    test_teams()
     test_possession()
     test_passes()
     test_shot_hidden_ball_timeout()
